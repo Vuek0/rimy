@@ -146,7 +146,7 @@ async def on_voice(
         return
     await state.clear()
     quota = await billing.try_consume(user, "voice", utcnow())
-    if quota.exceeded:
+    if quota.refused:
         await message.answer(billing.limit_message(quota) + "\n\nА текстом слово можно прислать прямо сейчас ✍️")
         return
     status = await message.answer("Слушаю… 🎧")
@@ -223,7 +223,8 @@ async def dispatch(
             await status.edit_text(texts.AI_ERROR)
             return
         if route.intent != "word":
-            if not await _consume(status, billing, user, "chat", prefix):
+            # a voice message was already counted as "voice": one message = one action from the quota
+            if not heard and not await _consume(status, billing, user, "chat", prefix):
                 return
             await answer_as_persona(
                 status, text, ai, repo, memory, user, deck, persona, prefix,
@@ -235,7 +236,7 @@ async def dispatch(
     if len(word) > MAX_INPUT_CHARS:
         await status.edit_text(prefix + texts.TOO_LONG)
         return
-    if not await _consume(status, billing, user, "word", prefix):
+    if not heard and not await _consume(status, billing, user, "word", prefix):
         return
     await analyze_and_handle(status, word, state, ai, repo, user, deck, prefix)
 
@@ -245,7 +246,7 @@ async def _consume(status: Message, billing: Billing | None, user: User, kind: s
     if billing is None:
         return True
     quota = await billing.try_consume(user, kind, utcnow())
-    if quota.exceeded:
+    if quota.refused:
         await status.edit_text(prefix + billing.limit_message(quota))
         return False
     return True

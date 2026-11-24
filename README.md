@@ -108,7 +108,7 @@ and set `WEBAPP_URL` to that address.
 | `GEMINI_API_KEY` | | Google Gemini, used as a fallback |
 | `GROQ_MODELS`, `OPENAI_MODEL`, `GEMINI_MODELS` | no | models; in comma-separated lists the next one is tried if the first fails |
 | `WEBAPP_URL` | no | public HTTPS address of the Mini App; empty = no app button |
-| `FREE_WORDS_PER_DAY`, `FREE_VOICE_PER_DAY`, `FREE_CHAT_PER_DAY`, `FREE_CHECKS_PER_DAY` | no | free plan limits (10 / 5 / 15 / 30) |
+| `FREE_WORDS_PER_DAY`, `FREE_VOICE_PER_DAY`, `FREE_CHAT_PER_DAY`, `FREE_CHECKS_PER_DAY` | no | free plan limits (20 / 20 / 20 / 50); a voice word counts only as voice |
 | `PREMIUM_PRICE_STARS` | no | Premium price in Telegram Stars per 30 days (123) |
 | `DATABASE_URL` | no | default `sqlite+aiosqlite:///data/bot.db` |
 | `TIMEZONE` | no | default `Asia/Tashkent` |

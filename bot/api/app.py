@@ -209,10 +209,12 @@ def create_app(
 
     # --- adding words ---
 
-    async def analyze(c: Ctx, text: str) -> dict[str, Any]:
-        quota = await c.billing.try_consume(c.user, "word", utcnow())
-        if quota.exceeded:
-            raise quota_error(c.billing, quota)
+    async def analyze(c: Ctx, text: str, count: bool = True) -> dict[str, Any]:
+        """count=False: the action was already counted (a voice word counts only as "voice")."""
+        if count:
+            quota = await c.billing.try_consume(c.user, "word", utcnow())
+            if quota.refused:
+                raise quota_error(c.billing, quota)
         try:
             analysis = await ai.analyze_text(text, c.deck.target_lang, c.user.native_lang)
         except AIError as exc:
@@ -241,7 +243,7 @@ def create_app(
         if not data or len(data) > MAX_AUDIO_BYTES:
             raise HTTPException(413, "audio is empty or longer than ~30 seconds")
         quota = await c.billing.try_consume(c.user, "voice", utcnow())
-        if quota.exceeded:
+        if quota.refused:
             raise quota_error(c.billing, quota)
         try:
             heard = await ai.transcribe(data, audio.content_type or "audio/webm", c.deck.target_lang, c.user.native_lang)
@@ -251,7 +253,7 @@ def create_app(
         heard = heard.rstrip("?").strip()[:MAX_TEXT]
         if not heard:
             raise HTTPException(422, "Не расслышал, попробуй ещё раз")
-        return {**(await analyze(c, heard)), "heard": heard}  # after the spread: analysis has heard=""
+        return {**(await analyze(c, heard, count=False)), "heard": heard}  # after the spread: analysis has heard=""
 
     @app.post("/api/words")
     async def save_word(body: DraftIn, c: C) -> dict[str, Any]:
@@ -296,7 +298,7 @@ def create_app(
 
     async def check(c: Ctx, card: Card, answer: str, voice: bool) -> dict[str, Any]:
         quota = await c.billing.try_consume(c.user, "check", utcnow())
-        if quota.exceeded:
+        if quota.refused:
             return {"verdict": "unknown", "rating": None, "comment": c.billing.limit_message(quota), "answer": answer}
         question, expected, lang = expected_answer(card, c.deck, c.user)
         try:

@@ -75,16 +75,16 @@ async def repo():
 async def test_free_limit_then_premium_removes_it(repo):
     user, _ = await repo.ensure_user(7, native_lang="ru", timezone="Asia/Tashkent", target_lang="it")
     billing, now = Billing(repo.s, settings()), utcnow()
-    assert not (await billing.try_consume(user, "word", now)).exceeded
+    assert not (await billing.try_consume(user, "word", now)).refused
     assert (await billing.try_consume(user, "word", now)).left == 0
-    assert (await billing.try_consume(user, "word", now)).exceeded  # 3rd word of the day: refused
+    assert (await billing.try_consume(user, "word", now)).refused  # 3rd word of the day: refused
     assert (await billing.quota(user, "word", now)).used == 2  # the refused one is not counted
-    assert not (await billing.try_consume(user, "word", now + timedelta(days=1))).exceeded  # a new day
+    assert not (await billing.try_consume(user, "word", now + timedelta(days=1))).refused  # a new day
 
     until = await billing.grant_premium(user, now, "charge-1", 250, "premium_30d")
     assert until - now == timedelta(days=30) and user.is_premium(now)
     assert await billing.grant_premium(user, now, "charge-1", 250, "premium_30d") == until  # duplicate update
-    assert not (await billing.try_consume(user, "word", now)).exceeded  # unlimited now
+    assert not (await billing.try_consume(user, "word", now)).refused  # unlimited now
     report = await billing.report(now - timedelta(days=1))
     assert report["stars"] == 250 and report["funnel"]["limit_reached"] == 1
 
@@ -160,8 +160,14 @@ async def test_add_review_and_limits(client):
     assert (await client.get("/api/words", headers=auth(11))).json()["total"] == 0
 
     # free plan: 2 AI words a day → the 3rd is a 402 with the paywall message
-    await client.post("/api/words/analyze", json={"text": "casa"}, headers=auth(10))
+    assert (await client.post("/api/words/analyze", json={"text": "casa"}, headers=auth(10))).status_code == 200
     limited = await client.post("/api/words/analyze", json={"text": "gatto"}, headers=auth(10))
     assert limited.status_code == 402 and limited.json()["detail"]["kind"] == "word"
+
+    # a voice word counts only as "voice": it still works when the text words are used up
+    voice = await client.post("/api/words/analyze-voice", files={"audio": ("v.webm", b"x", "audio/webm")}, headers=auth(10))
+    assert voice.status_code == 200 and voice.json()["heard"] == "finestra"
+    quotas = (await client.get("/api/me", headers=auth(10))).json()["quotas"]
+    assert quotas["voice"]["used"] == 1 and quotas["word"]["used"] == 2
 
     assert (await client.post("/api/premium/invoice", headers=auth(10))).json()["link"].startswith("https://t.me/")

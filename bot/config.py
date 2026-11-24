@@ -18,10 +18,10 @@ class Settings(BaseSettings):
     api_port: int = 8080
 
     # Free plan: AI actions per day. Premium has no limits.
-    free_words_per_day: int = 10
-    free_voice_per_day: int = 5
-    free_chat_per_day: int = 15
-    free_checks_per_day: int = 30
+    free_words_per_day: int = 20
+    free_voice_per_day: int = 20
+    free_chat_per_day: int = 20
+    free_checks_per_day: int = 50
     # Premium: a 30-day Telegram Stars subscription
     premium_price_stars: int = 123  # ≈ 30 000 sum for the buyer
     premium_days: int = 30

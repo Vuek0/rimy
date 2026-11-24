@@ -184,7 +184,7 @@ async def answer_card(
         return False
     question, expected, lang = expected_answer(card, deck, user)
     quota = await billing.try_consume(user, "check", utcnow()) if billing is not None else None
-    if quota is not None and quota.exceeded:
+    if quota is not None and quota.refused:
         check = AnswerCheck("unknown", 0, "AI-проверки на сегодня закончились - сравни сам(а) и выбери оценку. /premium ⭐")
     else:
         try:

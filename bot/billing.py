@@ -40,6 +40,7 @@ class Quota:
     kind: str
     used: int
     limit: int  # 0 = unlimited (premium)
+    refused: bool = False  # try_consume: the limit was already used up, the action was not counted
 
     @property
     def left(self) -> int | None:
@@ -74,10 +75,14 @@ class Billing:
         return [await self.quota(user, kind, now) for kind in KINDS]
 
     async def try_consume(self, user: User, kind: str, now: datetime) -> Quota:
-        """Count one AI action. Returns the quota; if `exceeded` is set, nothing was counted - refuse the action."""
+        """Count one AI action. Returns the quota; if `refused` is set, nothing was counted - refuse the action.
+
+        (Not `exceeded`: after the last allowed action of the day used == limit, yet that action is allowed.)
+        """
         quota = await self.quota(user, kind, now)
         if quota.exceeded:
             await self.track(user.id, "limit_reached", now, kind=kind)
+            quota.refused = True
             return quota
         row = await self._row(user, kind, now)
         if row is None:
