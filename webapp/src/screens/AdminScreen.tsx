@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Dashboard, type Point } from "../api";
+import {
+  Activity, BookOpen, Copy, Crown, Gift, Layers, Plus, Power, Receipt, Star, UserPlus, Users, type LucideIcon,
+} from "lucide-react";
+import { api, type Dashboard, type Point, type Promo } from "../api";
+import { haptic, tg } from "../telegram";
+import { FullLoader } from "../ui";
 
 const REFRESH_MS = 15_000;
 const RANGES = [7, 14, 30];
@@ -53,6 +58,7 @@ function BarChart({ title, points, unit, summary = "total" }: {
                 height={h}
                 rx={Math.min(4, (bw - gap) / 2)}
                 className={hover === i ? "chart-bar active" : "chart-bar"}
+                style={{ animationDelay: `${i * 20}ms` }}
               />
             </g>
           );
@@ -60,6 +66,99 @@ function BarChart({ title, points, unit, summary = "total" }: {
         <text x="0" y={H + 14} className="chart-tick">{dayLabel(points[0].day)}</text>
         <text x={W} y={H + 14} textAnchor="end" className="chart-tick">сегодня</text>
       </svg>
+    </div>
+  );
+}
+
+function Kpi({ icon: Icon, value, label }: { icon: LucideIcon; value: string | number; label: string }) {
+  return (
+    <div className="stat">
+      <span className="stat-icon"><Icon size={18} /></span>
+      <b>{value}</b>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/** Generate codes for the stand and see how many people used them. */
+function PromoAdmin({ onError }: { onError: (e: unknown) => void }) {
+  const [promos, setPromos] = useState<Promo[]>([]);
+  const [days, setDays] = useState(30);
+  const [maxUses, setMaxUses] = useState(100);
+  const [custom, setCustom] = useState("");
+  const [created, setCreated] = useState("");
+
+  const load = useCallback(() => api.promos().then((r) => setPromos(r.promos)).catch(onError), [onError]);
+  useEffect(() => { load(); }, [load]);
+
+  const copy = (code: string) => {
+    navigator.clipboard?.writeText(code).then(() => haptic.success()).catch(() => undefined);
+    tg?.showAlert(`Код ${code} скопирован`);
+  };
+
+  const create = async () => {
+    try {
+      const res = await api.createPromo(days, maxUses, custom.trim());
+      haptic.success();
+      setCreated(res.code);
+      setCustom("");
+      load();
+    } catch (e) {
+      onError(e);
+    }
+  };
+
+  const toggle = async (p: Promo) => {
+    try {
+      await api.setPromoActive(p.id, !p.active);
+      load();
+    } catch (e) {
+      onError(e);
+    }
+  };
+
+  return (
+    <div className="card">
+      <div className="row" style={{ gap: 10 }}>
+        <span className="stat-icon" style={{ margin: 0 }}><Gift size={18} /></span>
+        <div>
+          <h3>Промокоды</h3>
+          <p className="hint">Добавляют дни к оплаченному Premium</p>
+        </div>
+      </div>
+      <div className="promo-new">
+        <label>Дней Premium<input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value))} /></label>
+        <label>Макс. человек (0 = все)<input type="number" min={0} value={maxUses} onChange={(e) => setMaxUses(Number(e.target.value))} /></label>
+        <label className="full">Свой код (необязательно)<input className="code" value={custom} onChange={(e) => setCustom(e.target.value.toUpperCase())} placeholder="Авто: RIMY-XXXXXX" /></label>
+        <button className="primary full" onClick={create} disabled={days < 1}><Plus size={18} /> Создать код</button>
+      </div>
+      {created && (
+        <button className="notice ok enter" onClick={() => copy(created)} style={{ justifyContent: "flex-start" }}>
+          <Copy size={16} /> <span>Готово: <span className="code">{created}</span> (нажми, чтобы скопировать)</span>
+        </button>
+      )}
+      {promos.length > 0 && (
+        <table className="table">
+          <tbody>
+            {promos.map((p) => (
+              <tr key={p.id} className={p.active ? "" : "off"}>
+                <td>
+                  <button className="icon" onClick={() => copy(p.code)} style={{ padding: 0, color: "var(--text)" }}>
+                    <span className="code">{p.code}</span> <Copy size={14} />
+                  </button>
+                  <div className="hint">+{p.days} дн. · применён {p.applied} из {p.used}</div>
+                </td>
+                <td className="num">{p.used}{p.max_uses ? ` / ${p.max_uses}` : ""}</td>
+                <td className="num" style={{ width: 44 }}>
+                  <button className="icon" onClick={() => toggle(p)} aria-label={p.active ? "Выключить" : "Включить"}>
+                    <Power size={18} color={p.active ? "var(--ok)" : "var(--muted)"} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
@@ -77,7 +176,7 @@ export function AdminScreen({ onError }: { onError: (e: unknown) => void }) {
     return () => clearInterval(timer);
   }, [load]);
 
-  if (!data) return <div className="center muted">Считаю цифры… 📊</div>;
+  if (!data) return <FullLoader text="Считаю цифры…" />;
 
   const t = data.totals;
   const start = data.funnel[0]?.users ?? 0;
@@ -85,20 +184,20 @@ export function AdminScreen({ onError }: { onError: (e: unknown) => void }) {
 
   return (
     <div className="stack">
-      <div className="row admin-head">
-        <h1>📊 Rimy live</h1>
-        <span className="live">● обновлено {updated}</span>
+      <div className="row admin-head enter">
+        <h1>Rimy live</h1>
+        <span className="live">обновлено {updated}</span>
       </div>
 
-      <div className="kpis">
-        <div className="stat"><b>{t.users}</b><span>пользователей всего</span></div>
-        <div className="stat"><b>+{t.new_today}</b><span>новых сегодня</span></div>
-        <div className="stat"><b>{t.active_today}</b><span>активны сегодня</span></div>
-        <div className="stat"><b>{t.words}</b><span>слов добавлено</span></div>
-        <div className="stat"><b>{t.reviews}</b><span>повторений</span></div>
-        <div className="stat"><b>{t.premium}</b><span>Premium активно</span></div>
-        <div className="stat"><b>{t.payments}</b><span>оплат</span></div>
-        <div className="stat"><b>{t.stars} ⭐</b><span>Stars получено</span></div>
+      <div className="kpis stagger">
+        <Kpi icon={Users} value={t.users} label="пользователей всего" />
+        <Kpi icon={UserPlus} value={`+${t.new_today}`} label="новых сегодня" />
+        <Kpi icon={Activity} value={t.active_today} label="активны сегодня" />
+        <Kpi icon={BookOpen} value={t.words} label="слов добавлено" />
+        <Kpi icon={Layers} value={t.reviews} label="повторений" />
+        <Kpi icon={Crown} value={t.premium} label="Premium активно" />
+        <Kpi icon={Receipt} value={t.payments} label="оплат" />
+        <Kpi icon={Star} value={t.stars} label="Stars получено" />
       </div>
 
       <div className="chips">
@@ -109,11 +208,13 @@ export function AdminScreen({ onError }: { onError: (e: unknown) => void }) {
         ))}
       </div>
 
-      <BarChart title="Новые пользователи" points={data.series.new_users} unit="чел." />
-      <BarChart title="Активные пользователи" points={data.series.active_users} unit="чел." summary="today" />
-      <BarChart title="Добавлено слов" points={data.series.words} unit="слов" />
-      <BarChart title="Повторения карточек" points={data.series.reviews} unit="повторений" />
-      <BarChart title="AI-запросы" points={data.series.ai} unit="запросов" />
+      <div className="stack stagger" key={days}>
+        <BarChart title="Новые пользователи" points={data.series.new_users} unit="чел." />
+        <BarChart title="Активные пользователи" points={data.series.active_users} unit="чел." summary="today" />
+        <BarChart title="Добавлено слов" points={data.series.words} unit="слов" />
+        <BarChart title="Повторения карточек" points={data.series.reviews} unit="повторений" />
+        <BarChart title="AI-запросы" points={data.series.ai} unit="запросов" />
+      </div>
 
       <div className="card">
         <h3>Воронка за {data.days} дн.</h3>
@@ -128,6 +229,8 @@ export function AdminScreen({ onError }: { onError: (e: unknown) => void }) {
           </div>
         ))}
       </div>
+
+      <PromoAdmin onError={onError} />
 
       <div className="card">
         <h3>AI сегодня</h3>

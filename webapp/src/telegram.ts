@@ -11,6 +11,9 @@ interface TgWebApp {
   expand(): void;
   openInvoice(url: string, cb?: (status: "paid" | "cancelled" | "failed" | "pending") => void): void;
   showAlert(message: string): void;
+  setHeaderColor?(color: string): void;
+  setBackgroundColor?(color: string): void;
+  setBottomBarColor?(color: string): void;
   HapticFeedback?: {
     impactOccurred(style: Haptic): void;
     notificationOccurred(type: Notice): void;
@@ -28,6 +31,15 @@ export const tg: TgWebApp | undefined = window.Telegram?.WebApp;
 export function initTelegram(): void {
   // Telegram's own theme (not the OS one) decides light/dark: styles.css reads :root[data-scheme]
   if (tg) document.documentElement.dataset.scheme = tg.colorScheme;
+  // Telegram's header and background in the app's own palette, so the Mini App looks seamless
+  const dark = tg?.colorScheme === "dark";
+  try {
+    tg?.setHeaderColor?.(dark ? "#111813" : "#f3f2ec");
+    tg?.setBackgroundColor?.(dark ? "#111813" : "#f3f2ec");
+    tg?.setBottomBarColor?.(dark ? "#1a241d" : "#ffffff");
+  } catch {
+    // older Telegram clients: keep their default colors
+  }
   tg?.ready();
   tg?.expand();
 }

@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { Check, Crown, Gift, Loader2 } from "lucide-react";
 import { api, type Me } from "../api";
 import { haptic, tg } from "../telegram";
+import { PromoForm } from "../ui";
 
 interface Props { me: Me; reason: string; onClose: () => void; onPaid: () => void }
 
 /** Premium offer; the payment itself is Telegram's native Stars invoice (openInvoice). */
 export function Paywall({ me, reason, onClose, onPaid }: Props) {
   const [busy, setBusy] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
 
   const buy = async () => {
     setBusy(true);
@@ -33,21 +36,33 @@ export function Paywall({ me, reason, onClose, onPaid }: Props) {
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet stack" onClick={(e) => e.stopPropagation()}>
-        <div className="big-emoji">⭐</div>
-        <h2>Premium</h2>
-        {reason && <p className="muted">{reason.split("\n")[0]}</p>}
-        <ul className="perks">
-          <li>Без лимита на AI-слова и голосовые</li>
-          <li>Безлимитная AI-проверка ответов</li>
-          <li>Разговорная практика с {me.mascot}</li>
-          <li>Все языки сразу</li>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="grabber" />
+        <div className="sheet-head">
+          <div className="crown"><Crown size={32} /></div>
+          <h2>Rimy Premium</h2>
+          {reason && <p className="muted">{reason.split("\n")[0]}</p>}
+        </div>
+        <ul className="perks stagger">
+          <li><Check size={18} /> Без лимита на AI-слова и голосовые</li>
+          <li><Check size={18} /> Безлимитная AI-проверка ответов</li>
+          <li><Check size={18} /> Разговорная практика с {me.mascot}</li>
+          <li><Check size={18} /> Все языки сразу</li>
         </ul>
+        {me.promo_pending_days > 0 && (
+          <div className="notice ok"><Gift size={16} /><span>Твой промокод добавит ещё +{me.promo_pending_days} дн.</span></div>
+        )}
         <button className="primary wide" onClick={buy} disabled={busy}>
-          Подписаться за {me.price_stars} ⭐ в месяц
+          {busy ? <Loader2 size={18} className="spin" /> : <Crown size={18} />}
+          Подписаться за {me.price_stars} Stars в месяц
         </button>
-        <button className="secondary wide" onClick={onClose}>Не сейчас</button>
-        <p className="hint">Повторение карточек всегда бесплатно</p>
+        {promoOpen ? (
+          <div className="enter"><PromoForm onDone={onPaid} compact /></div>
+        ) : (
+          <button className="ghost wide" onClick={() => setPromoOpen(true)}><Gift size={18} /> У меня есть промокод</button>
+        )}
+        <button className="ghost wide" onClick={onClose} style={{ color: "var(--muted)" }}>Не сейчас</button>
+        <p className="hint center-text">Повторение карточек всегда бесплатно</p>
       </div>
     </div>
   );

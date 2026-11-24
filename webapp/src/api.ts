@@ -15,6 +15,11 @@ export interface Me {
   stats: { words: number; due: number; reviewed_today: number; streak: number };
   mascot: string;
   is_admin: boolean;
+  promo_pending_days: number;
+}
+export interface Promo {
+  id: number; code: string; days: number; max_uses: number; active: boolean;
+  used: number; applied: number; created_at: string;
 }
 export interface Point { day: string; value: number }
 export interface Dashboard {
@@ -94,7 +99,13 @@ export const api = {
 
   invoice: () => post<{ link: string }>("/api/premium/invoice"),
 
+  redeemPromo: (code: string) => post<{ status: string; ok: boolean; message: string; days: number }>("/api/promo", { code }),
+
   dashboard: (days: number) => request<Dashboard>(`/api/admin/dashboard?days=${days}`),
+  promos: () => request<{ promos: Promo[] }>("/api/admin/promos"),
+  createPromo: (days: number, maxUses: number, code = "") =>
+    post<{ code: string; id: number }>("/api/admin/promos", { days, max_uses: maxUses, code }),
+  setPromoActive: (id: number, active: boolean) => post(`/api/admin/promos/${id}`, { active }),
 };
 
 /** Play a word's (or its example's) pronunciation. */
