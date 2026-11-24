@@ -1,0 +1,33 @@
+# Production: the bot (+ Mini App API) behind Caddy, which gets a Let's Encrypt certificate by itself.
+# Run from the repo root:  DOMAIN=<ip-with-dashes>.sslip.io docker compose -p rimy -f deploy/docker-compose.prod.yml up -d --build
+services:
+  bot:
+    build: ..
+    restart: always
+    env_file: ../.env
+    volumes:
+      - rimy-data:/app/data
+    expose:
+      - "8080"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    depends_on: [bot]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN, e.g. 82-70-40-178.sslip.io}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  rimy-data:
+  caddy-data:
+  caddy-config:

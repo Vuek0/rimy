@@ -1,0 +1,28 @@
+# Weekly pull requests that update dependencies and GitHub Actions.
+# Security fixes come separately as Dependabot security updates whenever a vulnerability is published.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    # requirements.txt uses minimum versions (>=), and builds always install the latest ones.
+    # Only touch a requirement when the new version doesn't fit it anymore, instead of raising
+    # every lower bound (noise that changes nothing).
+    versioning-strategy: increase-if-necessary
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # Moving to a new Python version (3.12 → 3.13+) is a deliberate decision, not an automatic bump;
+      # patch releases (3.12.x) still come through.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

@@ -1,0 +1,29 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+
+# local data
+data/
+*.db
+*.db-journal
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# mini app
+webapp/node_modules/
+webapp/dist/
+*.tsbuildinfo
+
+# editors / tools
+.claude/settings.local.json
+.idea/
+.vscode/
+
+# deploy state on the server (written by scripts/deploy.sh)
+docker-compose.override.yml
+.deployed

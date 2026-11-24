@@ -1,0 +1,11 @@
+[project]
+name = "lang-lrn-bot"
+version = "0.1.0"
+description = "Telegram bot for learning foreign words with AI checks and spaced repetition"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["."]  # so `pytest` (not only `python -m pytest`) can import the bot package

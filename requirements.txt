@@ -1,0 +1,14 @@
+aiogram>=3.22,<4
+pydantic-settings>=2.6
+SQLAlchemy[asyncio]>=2.0.36
+aiosqlite>=0.20
+google-genai>=1.40
+openai>=1.60
+fsrs>=6,<7
+tzdata
+alembic>=1.14
+Pillow>=11
+edge-tts>=7
+fastapi>=0.115
+uvicorn>=0.32
+python-multipart>=0.0.12

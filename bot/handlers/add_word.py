@@ -1,0 +1,484 @@
+"""Adding words: text/voice → AI analysis → clarify (typo? which meaning?) → preview → save."""
+
+import logging
+import re
+from datetime import datetime, timedelta
+from typing import Any
+from zoneinfo import ZoneInfo
+
+from aiogram import Bot, F, Router
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+
+from bot import texts
+from bot.ai.service import AIService
+from bot.ai.schemas import AIError, Sense, WordAnalysis
+from bot.billing import Billing
+from bot.db.models import Deck, Persona, User
+from bot.db.repo import Repo
+from bot.handlers import review
+from bot.handlers.speech import speech_buttons
+from bot.handlers.talk import answer_as_persona, looks_like_word
+from bot.images import arts
+from bot.persona.card import PersonaCard, phrase
+from bot.persona.memory import ChatMemory
+from bot.utils import esc, norm, utcnow
+from bot import menu
+
+log = logging.getLogger(__name__)
+router = Router(name="add_word")
+
+MAX_INPUT_CHARS = 120  # a word or phrase for a flashcard
+MAX_MESSAGE_CHARS = 1500  # a question / chat message
+MAX_VOICE_SECONDS = 30
+MAX_SENSES = 4
+
+
+class AddWord(StatesGroup):
+    fix = State()  # "did you mean …?"
+    sense = State()  # "which meaning?"
+    confirm = State()  # preview with Save / Edit / Cancel
+    edit = State()  # waiting for a custom translation
+
+
+def _btn(text: str, data: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=text, callback_data=data)
+
+
+def _short(text: str, limit: int = 40) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+CONFIRM_KB = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [_btn("✅ Сохранить", "add:save")],
+        [_btn("✏️ Свой перевод", "add:edit"), _btn("❌ Отмена", "add:cancel")],
+    ]
+)
+
+
+def make_draft(analysis: WordAnalysis, senses: list[Sense], fallback: str) -> dict[str, Any]:
+    lemma = analysis.lemma.strip() or fallback.strip()
+    first = senses[0] if senses else None
+    return {
+        "lemma": lemma,
+        "display": analysis.display.strip() or lemma,
+        "reading": analysis.reading.strip(),
+        "pos": analysis.pos.strip(),
+        "translations": [s.translation.strip() for s in senses],
+        "example": first.example.strip() if first else "",
+        "example_translation": first.example_translation.strip() if first else "",
+        "notes": analysis.notes.strip(),
+    }
+
+
+# --- entry points: text & voice ---
+
+
+@router.message(AddWord.edit, F.text, ~F.text.startswith("/"), menu.NOT_MENU)
+async def on_custom_translation(message: Message, state: FSMContext, repo: Repo, deck: Deck) -> None:
+    data = await state.get_data()
+    draft = data.get("draft")
+    if not draft:
+        await state.clear()
+        await message.answer(texts.STALE)
+        return
+    translations = [part.strip() for part in re.split(r"[;,\n]", message.text or "") if part.strip()]
+    if not translations:
+        await message.answer("Напиши перевод текстом 🙂")
+        return
+    draft["translations"] = translations
+    status = await message.answer("👌")
+    await show_preview(status, state, repo, deck, draft)
+
+
+@router.message(F.text, ~F.text.startswith("/"))
+async def on_text(
+    message: Message,
+    state: FSMContext,
+    ai: AIService,
+    repo: Repo,
+    user: User,
+    deck: Deck,
+    persona: PersonaCard,
+    persona_row: Persona,
+    memory: ChatMemory,
+    billing: Billing,
+) -> None:
+    text = (message.text or "").strip()
+    if len(text) > MAX_MESSAGE_CHARS:
+        await message.answer(texts.TOO_LONG)
+        return
+    await state.clear()
+    if memory.waiting_answer(user.id) and len(text) <= MAX_INPUT_CHARS:  # an answer to the open review card?
+        status = await message.answer("Проверяю… 🔎")
+        if await review.answer_card(message, text, False, ai, repo, user, deck, persona, memory, billing=billing):
+            await status.delete()
+            return
+        await status.edit_text(phrase(persona, "thinking", texts.THINKING))
+    else:
+        status = await message.answer(phrase(persona, "thinking", texts.THINKING))
+    await dispatch(
+        status, text, state, ai, repo, user, deck, persona, persona_row, memory,
+        replied=replied_text(message), billing=billing,
+    )
+
+
+@router.message(F.voice | F.audio)
+async def on_voice(
+    message: Message,
+    bot: Bot,
+    state: FSMContext,
+    ai: AIService,
+    repo: Repo,
+    user: User,
+    deck: Deck,
+    persona: PersonaCard,
+    persona_row: Persona,
+    memory: ChatMemory,
+    billing: Billing,
+) -> None:
+    media = message.voice or message.audio
+    assert media is not None
+    if media.duration and media.duration > MAX_VOICE_SECONDS:
+        await message.answer(f"Голосовое длинновато 😅 До {MAX_VOICE_SECONDS} секунд, пожалуйста.")
+        return
+    await state.clear()
+    quota = await billing.try_consume(user, "voice", utcnow())
+    if quota.exceeded:
+        await message.answer(billing.limit_message(quota) + "\n\nА текстом слово можно прислать прямо сейчас ✍️")
+        return
+    status = await message.answer("Слушаю… 🎧")
+    buffer = await bot.download(media)
+    if buffer is None:
+        await status.edit_text("Не получилось скачать голосовое 😿")
+        return
+    # An answer to the open review card is expected in a known language: tell speech recognition first
+    waiting = memory.waiting_answer(user.id)
+    card = await repo.get_card(waiting[0]) if waiting else None
+    expect = review.answer_language(card, deck, user) if card else deck.target_lang
+    other = user.native_lang if expect == deck.target_lang else deck.target_lang
+    try:
+        # In practice mode or when answering a card the language is known: tell recognition not to guess
+        force = card is not None or user.practice_mode
+        heard = await ai.transcribe(buffer.read(), media.mime_type or "audio/ogg", expect, other, force)
+    except AIError:
+        log.exception("transcription failed")
+        await status.edit_text(texts.AI_ERROR)
+        return
+    if not heard:
+        await status.edit_text("Не расслышала 😿 Попробуй ещё раз, чуть чётче.")
+        return
+    if card is not None:
+        await status.edit_text(f"🎧 Расслышала: <b>{esc(heard)}</b>\nПроверяю… 🔎")
+        if await review.answer_card(message, heard, True, ai, repo, user, deck, persona, memory, billing=billing):
+            await status.delete()
+            return
+    await dispatch(
+        status, heard, state, ai, repo, user, deck, persona, persona_row, memory,
+        heard=True, replied=replied_text(message), billing=billing,
+    )
+
+
+def replied_text(message: Message) -> str:
+    """If the user answered one of the bot's messages with Telegram's "Reply", that message's text."""
+    original = message.reply_to_message
+    if original is None or original.from_user is None or not original.from_user.is_bot:
+        return ""
+    return (original.text or original.caption or "").strip()
+
+
+async def dispatch(
+    status: Message,
+    text: str,
+    state: FSMContext,
+    ai: AIService,
+    repo: Repo,
+    user: User,
+    deck: Deck,
+    persona: PersonaCard,
+    persona_row: Persona,
+    memory: ChatMemory,
+    heard: bool = False,
+    replied: str = "",
+    billing: Billing | None = None,
+) -> None:
+    """A word → flashcard flow; a question or small talk → the persona answers.
+
+    billing: counts the free plan's daily AI actions (None in tests: no limits).
+
+    replied: text of the bot message the user answered with Telegram's "Reply".
+    While a conversation is going on, even a one-word message may be an answer, so the AI decides
+    (seeing what the persona said last) instead of the quick "1-3 words = a word" rule.
+    """
+    prefix = f"🎧 Расслышала: <b>{esc(text)}</b>\n\n" if heard else ""
+    previous = replied or (memory.last_reply(user.id) if memory.in_conversation(user.id) else "")
+    word = text
+    if previous or user.practice_mode or not looks_like_word(text):
+        try:
+            route = await ai.route(text, deck.target_lang, user.native_lang, previous)
+        except AIError:
+            log.exception("routing failed")
+            await status.edit_text(texts.AI_ERROR)
+            return
+        if route.intent != "word":
+            if not await _consume(status, billing, user, "chat", prefix):
+                return
+            await answer_as_persona(
+                status, text, ai, repo, memory, user, deck, persona, prefix,
+                persona_row=persona_row, small_talk=route.intent == "chat", replied=replied,
+            )
+            return
+        word = route.word or text
+    memory.end_conversation(user.id)  # adding words now: the next short messages are words again
+    if len(word) > MAX_INPUT_CHARS:
+        await status.edit_text(prefix + texts.TOO_LONG)
+        return
+    if not await _consume(status, billing, user, "word", prefix):
+        return
+    await analyze_and_handle(status, word, state, ai, repo, user, deck, prefix)
+
+
+async def _consume(status: Message, billing: Billing | None, user: User, kind: str, prefix: str = "") -> bool:
+    """Count one AI action of the free plan; False (and the paywall message) if today's limit is used up."""
+    if billing is None:
+        return True
+    quota = await billing.try_consume(user, kind, utcnow())
+    if quota.exceeded:
+        await status.edit_text(prefix + billing.limit_message(quota))
+        return False
+    return True
+
+
+async def analyze_and_handle(
+    status: Message,
+    word: str,
+    state: FSMContext,
+    ai: AIService,
+    repo: Repo,
+    user: User,
+    deck: Deck,
+    prefix: str = "",
+    meaning: str = "",
+    context: str = "",
+) -> None:
+    try:
+        analysis = await ai.analyze_text(word, deck.target_lang, user.native_lang, meaning, context)
+    except AIError:
+        log.exception("text analysis failed")
+        await status.edit_text(texts.AI_ERROR)
+        return
+    await handle_analysis(status, state, repo, deck, analysis, original=word, prefix=prefix)
+
+
+@router.callback_query(F.data.startswith("aw:"))
+async def on_add_suggested(
+    callback: CallbackQuery,
+    state: FSMContext,
+    ai: AIService,
+    repo: Repo,
+    user: User,
+    deck: Deck,
+    persona: PersonaCard,
+    memory: ChatMemory,
+    billing: Billing,
+) -> None:
+    """➕ under a persona reply: add that word with the meaning it had in that reply."""
+    await callback.answer()
+    message = callback.message
+    if not isinstance(message, Message):
+        return
+    word = (callback.data or "")[3:].strip()
+    meaning, context = memory.word_hint(message.chat.id, message.message_id, word)
+    await state.clear()
+    status = await message.answer(phrase(persona, "thinking", texts.THINKING))
+    if not await _consume(status, billing, user, "word"):
+        return
+    await analyze_and_handle(status, word, state, ai, repo, user, deck, meaning=meaning, context=context)
+
+
+# --- flow ---
+
+
+async def handle_analysis(
+    status: Message,
+    state: FSMContext,
+    repo: Repo,
+    deck: Deck,
+    analysis: WordAnalysis,
+    original: str,
+    prefix: str = "",
+) -> None:
+    issues = "".join(f"\n• {esc(issue)}" for issue in analysis.issues)
+    suggestions = [s for s in analysis.suggestions if norm(s) != norm(original)][:3]
+
+    if suggestions:
+        await state.set_state(AddWord.fix)
+        await state.update_data(
+            original=original, suggestions=suggestions, analysis=analysis.model_dump(), prefix=prefix
+        )
+        rows = [[_btn(f"✨ {_short(s)}", f"fix:{i}")] for i, s in enumerate(suggestions)]
+        rows.append([_btn(f"Оставить «{_short(original, 30)}»", "fix:keep")])
+        await status.edit_text(
+            f"{prefix}Хм, «<b>{esc(original)}</b>»…{issues}\n\nМожет, имелось в виду:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+        )
+        return
+
+    if not analysis.is_valid and not analysis.senses:
+        await state.clear()
+        await status.edit_text(f"{prefix}Не нашла такого слова 🤔{issues}\n\nПроверь написание и пришли ещё раз.")
+        return
+
+    await go_senses(status, state, repo, deck, analysis, original, prefix)
+
+
+@router.callback_query(AddWord.fix, F.data.startswith("fix:"))
+async def on_fix(callback: CallbackQuery, state: FSMContext, ai: AIService, repo: Repo, user: User, deck: Deck) -> None:
+    await callback.answer()
+    message = callback.message
+    data = await state.get_data()
+    if not isinstance(message, Message) or "analysis" not in data:
+        return
+    choice = (callback.data or "").split(":", 1)[1]
+    prefix = data.get("prefix", "")
+    if choice == "keep":
+        analysis = WordAnalysis.model_validate(data["analysis"])
+        word = data["original"]
+    else:
+        word = data["suggestions"][int(choice)]
+        await message.edit_text(f"Смотрю «{esc(word)}»… 🔎")
+        try:
+            analysis = await ai.analyze_text(word, deck.target_lang, user.native_lang)
+        except AIError:
+            log.exception("re-analysis failed")
+            await state.clear()
+            await message.edit_text(texts.AI_ERROR)
+            return
+    await go_senses(message, state, repo, deck, analysis, word, prefix)
+
+
+async def go_senses(
+    message: Message, state: FSMContext, repo: Repo, deck: Deck, analysis: WordAnalysis, original: str, prefix: str
+) -> None:
+    senses = analysis.senses[:MAX_SENSES]
+
+    if not senses:
+        draft = make_draft(analysis, [], original)
+        await state.set_state(AddWord.edit)
+        await state.update_data(draft=draft)
+        await message.edit_text(
+            f"{prefix}Не смогла подобрать перевод для <b>{esc(draft['display'])}</b> 😿\n"
+            "Напиши перевод сам(а), можно несколько через запятую."
+        )
+        return
+
+    if len(senses) == 1:
+        await show_preview(message, state, repo, deck, make_draft(analysis, senses, original), prefix)
+        return
+
+    await state.set_state(AddWord.sense)
+    await state.update_data(analysis=analysis.model_dump(), original=original, prefix=prefix)
+    display = analysis.display or analysis.lemma or original
+    lines = [
+        f"{i + 1}. {esc(s.translation)}" + (f" <i>({esc(s.note)})</i>" if s.note else "")
+        for i, s in enumerate(senses)
+    ]
+    rows = [[_btn(f"{i + 1}. {_short(s.translation)}", f"sense:{i}")] for i, s in enumerate(senses)]
+    rows.append([_btn("📚 Все значения", "sense:all")])
+    await message.edit_text(
+        f"{prefix}У <b>{esc(display)}</b> несколько значений. Какое сохраним?\n\n" + "\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+    )
+
+
+@router.callback_query(AddWord.sense, F.data.startswith("sense:"))
+async def on_sense(callback: CallbackQuery, state: FSMContext, repo: Repo, deck: Deck) -> None:
+    await callback.answer()
+    data = await state.get_data()
+    if not isinstance(callback.message, Message) or "analysis" not in data:
+        return
+    analysis = WordAnalysis.model_validate(data["analysis"])
+    senses = analysis.senses[:MAX_SENSES]
+    choice = (callback.data or "").split(":", 1)[1]
+    chosen = senses if choice == "all" else [senses[int(choice)]]
+    draft = make_draft(analysis, chosen, data.get("original", ""))
+    await show_preview(callback.message, state, repo, deck, draft, data.get("prefix", ""))
+
+
+async def show_preview(
+    message: Message, state: FSMContext, repo: Repo, deck: Deck, draft: dict[str, Any], prefix: str = ""
+) -> None:
+    await state.set_state(AddWord.confirm)
+    await state.update_data(draft=draft)
+    text = prefix + texts.render_word(draft)
+    duplicates = await repo.find_duplicates(deck.id, draft["lemma"])
+    if duplicates:
+        existing = "; ".join(t for d in duplicates for t in d.translations)
+        text += f"\n\n⚠️ Это слово уже есть в колоде: <i>{esc(existing)}</i>"
+    await message.edit_text(text, reply_markup=CONFIRM_KB)
+
+
+@router.callback_query(AddWord.confirm, F.data.startswith("add:"))
+async def on_confirm(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: Repo,
+    deck: Deck,
+    persona: PersonaCard,
+    persona_row: Persona,
+    user: User,
+    billing: Billing,
+) -> None:
+    await callback.answer()
+    message = callback.message
+    data = await state.get_data()
+    draft = data.get("draft")
+    if not isinstance(message, Message) or not draft:
+        return
+    action = (callback.data or "").split(":", 1)[1]
+
+    if action == "save":
+        now = utcnow()
+        word = await repo.add_word(deck.id, draft, now)
+        await billing.track_once(user.id, "first_word", now, source="bot")
+        await billing.track(user.id, "word_saved", now, source="bot", lang=deck.target_lang)
+        await state.clear()
+        await message.edit_text(
+            texts.render_word(draft) + f"\n\n{esc(phrase(persona, 'saved', texts.SAVED))} Повторим в /review",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[speech_buttons(word)]),
+        )
+        # A sticker only for something worth celebrating, not for every saved word.
+        if milestone := await word_milestone(repo, deck.id, word.id, user.timezone, now):
+            if not await arts.send_reaction(message, repo, persona_row, persona, "milestone", milestone, force=True):
+                await message.answer(milestone)
+    elif action == "edit":
+        await state.set_state(AddWord.edit)
+        await message.edit_reply_markup(reply_markup=None)
+        await message.answer("Напиши свой перевод, можно несколько через запятую ✏️")
+    else:
+        await state.clear()
+        await message.edit_text(texts.render_word(draft) + "\n\nОкей, не сохраняю 🙂")
+
+
+# --- milestones: the only time saving a word gets a sticker ---
+
+TOTAL_MILESTONES = {25, 50, 100, 200, 300, 500, 750, 1000}
+DAILY_MILESTONE = 10
+COMEBACK_AFTER = timedelta(days=3)
+
+
+async def word_milestone(repo: Repo, deck_id: int, word_id: int, timezone: str, now: datetime) -> str | None:
+    """Text to celebrate with, or None. Checked right after a word is saved."""
+    total = await repo.count_words(deck_id)
+    if total in TOTAL_MILESTONES or (total > 1000 and total % 500 == 0):
+        return f"🎉 Уже <b>{total}</b> слов в колоде!"
+    previous = await repo.previous_word_at(deck_id, word_id)
+    if previous is not None and now - previous >= COMEBACK_AFTER:
+        return f"🤗 С возвращением! Прошлое слово было {(now - previous).days} дн. назад"
+    tz = ZoneInfo(timezone)
+    midnight = now.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    if await repo.count_words_since(deck_id, midnight) == DAILY_MILESTONE:
+        return f"🔥 {DAILY_MILESTONE} новых слов за сегодня!"
+    return None

@@ -1,0 +1,20 @@
+services:
+  bot:
+    # On the server the CI writes docker-compose.override.yml with the exact image to run.
+    image: ${BOT_IMAGE:-lang-lrn-bot:local}
+    build: .
+    restart: always
+    env_file: .env
+    # Mini App + API. Only on localhost: a reverse proxy (Caddy) in front gives it HTTPS.
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - bot-data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot-data:
