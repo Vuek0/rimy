@@ -41,6 +41,7 @@ COMMANDS = [
     BotCommand(command="list", description="Мои слова"),
     BotCommand(command="stats", description="Статистика"),
     BotCommand(command="premium", description="Premium без лимитов"),
+    BotCommand(command="promo", description="Ввести промокод"),
     BotCommand(command="practice", description="Разговорная практика вкл/выкл"),
     BotCommand(command="lang", description="Сменить изучаемый язык"),
     BotCommand(command="base", description="Язык общения с ботом"),

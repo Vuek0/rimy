@@ -102,6 +102,36 @@ class Payment(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 
+class PromoCode(Base):
+    """A promo code the team hands out in person (generated in the admin dashboard): +`days` of Premium.
+
+    It only extends a PAID subscription: entered before paying, it waits and is applied with the
+    first payment. `max_uses` = 0 means unlimited.
+    """
+
+    __tablename__ = "promo_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(32), unique=True)  # upper case
+    days: Mapped[int] = mapped_column(Integer)
+    max_uses: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class PromoRedemption(Base):
+    """A user entered a promo code (once per code). applied_at is empty while it waits for a payment."""
+
+    __tablename__ = "promo_redemptions"
+    __table_args__ = (UniqueConstraint("user_id", "promo_id", name="uq_promo_redemptions_user_promo"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    promo_id: Mapped[int] = mapped_column(ForeignKey("promo_codes.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    applied_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
 class Event(Base):
     """Product analytics kept in our own DB: the funnel and the lead count for reports."""
 

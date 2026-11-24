@@ -22,6 +22,7 @@ FUNNEL = [
     ("limit_reached", "Упёрлись в лимит"),
     ("paywall_view", "Смотрели Premium"),
     ("purchase", "Купили Premium"),
+    ("promo_redeemed", "Ввели промокод"),
 ]
 AI_KINDS = {"word": "AI-слова", "voice": "Голосовые", "chat": "Сообщения Рими", "check": "AI-проверки"}
 

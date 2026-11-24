@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot import promo
 from bot.config import Settings
 from bot.db.models import Event, Payment, Usage, User
 from bot.utils import utcnow
@@ -107,6 +108,7 @@ class Billing:
             self.s.add(Payment(user_id=user.id, amount=amount, payload=payload, charge_id=charge_id, created_at=now))
             start = max(now, user.premium_until or now)
             user.premium_until = start + timedelta(days=self.settings.premium_days)
+            await promo.apply_pending(self.s, user, now)  # promo codes entered before paying
             await self.track(user.id, "purchase", now, amount=amount, payload=payload)
             await self.s.flush()
         assert user.premium_until is not None

@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from bot import srs
+from bot import promo, srs
 from bot.ai.schemas import AIError, WordAnalysis
 from bot.ai.service import AIService
 from bot.api.auth import AuthError, parse_init_data
@@ -66,6 +66,20 @@ class LangIn(BaseModel):
 
 class RateIn(BaseModel):
     rating: int = Field(ge=1, le=4)
+
+
+class PromoIn(BaseModel):
+    code: str = Field(min_length=1, max_length=40)
+
+
+class PromoCreateIn(BaseModel):
+    days: int = Field(ge=1, le=365)
+    max_uses: int = Field(default=0, ge=0, le=100_000)
+    code: str = Field(default="", max_length=32)
+
+
+class PromoActiveIn(BaseModel):
+    active: bool
 
 
 class EventIn(BaseModel):
@@ -178,14 +192,51 @@ def create_app(
             "stats": {"words": snap.words, "due": snap.due, "reviewed_today": snap.reviewed_today, "streak": snap.streak},
             "mascot": c.persona.name,
             "is_admin": settings.is_admin(c.user.id),
+            "promo_pending_days": await promo.pending_days(c.repo.s, c.user),
         }
+
+    @app.post("/api/promo")
+    async def redeem_promo(body: PromoIn, c: C) -> dict[str, Any]:
+        result = await promo.redeem(c.repo.s, c.user, body.code, utcnow())
+        return {
+            "status": result.status,
+            "ok": result.status in ("applied", "pending", "already"),
+            "message": promo.message(result),
+            "days": result.days,
+        }
+
+    # --- admin (ADMIN_IDS only) ---
+
+    def admin_only(c: Ctx) -> None:
+        if not settings.is_admin(c.user.id):
+            raise HTTPException(403, "admins only")
 
     @app.get("/api/admin/dashboard")
     async def admin_dashboard(c: C, days: int = 14) -> dict[str, Any]:
-        """The team's live dashboard: only for ADMIN_IDS (it shows everyone's numbers)."""
-        if not settings.is_admin(c.user.id):
-            raise HTTPException(403, "admins only")
+        """The team's live dashboard (it shows everyone's numbers)."""
+        admin_only(c)
         return await dashboard(c.repo.s, utcnow(), settings.timezone, max(1, min(days, 90)))
+
+    @app.get("/api/admin/promos")
+    async def list_promos(c: C) -> dict[str, Any]:
+        admin_only(c)
+        return {"promos": await promo.overview(c.repo.s)}
+
+    @app.post("/api/admin/promos")
+    async def create_promo(body: PromoCreateIn, c: C) -> dict[str, Any]:
+        admin_only(c)
+        try:
+            created = await promo.create(c.repo.s, utcnow(), body.days, body.max_uses, body.code)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {"code": created.code, "id": created.id}
+
+    @app.post("/api/admin/promos/{promo_id}")
+    async def toggle_promo(promo_id: int, body: PromoActiveIn, c: C) -> dict[str, bool]:
+        admin_only(c)
+        if await promo.set_active(c.repo.s, promo_id, body.active) is None:
+            raise HTTPException(404, "no such promo code")
+        return {"active": body.active}
 
     @app.post("/api/lang")
     async def set_lang(body: LangIn, c: C) -> dict[str, Any]:

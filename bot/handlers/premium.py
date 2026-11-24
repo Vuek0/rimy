@@ -6,10 +6,10 @@ Telegram requires Stars for digital goods sold in bots and Mini Apps, so no paym
 import logging
 
 from aiogram import Bot, F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Message, PreCheckoutQuery
 
-from bot import menu
+from bot import menu, promo
 from bot.billing import PREMIUM_PAYLOAD, Billing
 from bot.config import Settings
 from bot.db.models import User
@@ -25,7 +25,8 @@ PREMIUM_TEXT = (
     "• Без лимита на AI-слова, голосовые и разговоры с маскотом\n"
     "• AI-проверка ответов в повторении без ограничений\n"
     "• Все языки сразу\n\n"
-    "Повторение карточек всегда бесплатно."
+    "Повторение карточек всегда бесплатно.\n"
+    "🎁 Есть промокод? <code>/promo КОД</code>"
 )
 
 
@@ -76,11 +77,27 @@ async def on_pre_checkout(query: PreCheckoutQuery) -> None:
 async def on_paid(message: Message, user: User, billing: Billing) -> None:
     payment = message.successful_payment
     assert payment is not None
+    bonus = await promo.pending_days(billing.s, user)  # promo codes entered before paying
     until = await billing.grant_premium(
         user, utcnow(), payment.telegram_payment_charge_id, payment.total_amount, payment.invoice_payload
     )
     log.info("premium bought by %s, %d %s", user.id, payment.total_amount, payment.currency)
+    gift = f"\n🎁 Промокод: +{bonus} дн. в подарок!" if bonus else ""
     await message.answer(
-        f"🎉 Premium активирован до <b>{esc(until.strftime('%d.%m.%Y'))}</b>!\n"
+        f"🎉 Premium активирован до <b>{esc(until.strftime('%d.%m.%Y'))}</b>!{gift}\n"
         "Теперь никаких лимитов - присылай слова сколько хочешь 🦥"
     )
+
+
+@router.message(Command("promo"))
+async def cmd_promo(message: Message, command: CommandObject, user: User, billing: Billing) -> None:
+    """/promo CODE - a code from the Rimy team: extra Premium days on top of a paid subscription."""
+    code = (command.args or "").strip()
+    if not code:
+        await message.answer(
+            "🎁 Есть промокод от команды Rimy? Пришли его так:\n<code>/promo КОД</code>\n\n"
+            "Промокод добавляет дни к Premium: если подписки ещё нет, он подождёт до оплаты."
+        )
+        return
+    result = await promo.redeem(billing.s, user, code, utcnow())
+    await message.answer(esc(promo.message(result)))
