@@ -16,7 +16,7 @@ import aiohttp
 
 log = logging.getLogger(__name__)
 
-USER_AGENT = "lang-lrn-bot/0.1 (personal Telegram bot for language learning)"
+USER_AGENT = "rimy/0.1 (Telegram bot for language learning)"
 TIMEOUT = aiohttp.ClientTimeout(total=20)
 DANBOORU = "https://danbooru.donmai.us"
 SAFEBOORU = "https://safebooru.org"

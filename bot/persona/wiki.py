@@ -12,7 +12,7 @@ import aiohttp
 
 log = logging.getLogger(__name__)
 
-USER_AGENT = "lang-lrn-bot/0.1 (personal Telegram bot for language learning)"
+USER_AGENT = "rimy/0.1 (Telegram bot for language learning)"
 TIMEOUT = aiohttp.ClientTimeout(total=12)
 WANTED_SECTIONS = re.compile(r"personality|appearance|character|personnalit|личность|характер|внешност", re.I)
 MAX_SECTION_CHARS = 2500
