@@ -21,6 +21,7 @@ from bot.images import arts, booru
 from bot.jobs.scheduler import Scheduler
 from bot.middlewares import DbMiddleware
 from bot.persona.memory import ChatMemory
+from bot.profile import set_profile
 
 WEBAPP_DIR = Path(__file__).resolve().parent.parent / "webapp" / "dist"  # built Mini App (npm run build)
 
@@ -69,6 +70,7 @@ async def main() -> None:
     dp.errors.register(on_error)  # no silent failures: log + tell the user
 
     await bot.set_my_commands(COMMANDS)
+    await set_profile(bot)  # "What can this bot do?" and the profile text, in ru / uz / en
     if settings.webapp_url:  # the button next to the input field opens the Mini App
         await bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(text="Приложение", web_app=WebAppInfo(url=settings.webapp_url))
