@@ -5,6 +5,7 @@ import re
 
 from pydantic import BaseModel, field_validator
 
+from bot.i18n import TEXTS, tr
 from bot.utils import esc
 
 
@@ -96,6 +97,8 @@ DEFAULT_CARD = PersonaCard(
 
 
 def phrase(card: PersonaCard, kind: str, fallback: list[str]) -> str:
+    if card.name == MASCOT_NAME and kind in TEXTS["ru"]:  # the mascot speaks the learner's language
+        return tr(kind)
     options: list[str] = getattr(card.phrases, kind, None) or fallback
     return random.choice(options)
 

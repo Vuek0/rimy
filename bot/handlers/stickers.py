@@ -13,6 +13,8 @@ from bot.images.arts import STICKER_EMOTIONS
 from bot.persona.card import PersonaCard
 from bot.utils import esc
 
+from bot.i18n import tr
+
 router = Router(name="stickers")
 
 NEW_PER_PAGE = 4  # fresh candidates per "show more"
@@ -72,7 +74,7 @@ async def on_stickers(
     elif action in ("p", "b") and arg.isdigit():  # toggle "in my set" / remove
         art = await repo.get_art(user, int(arg))
         if art is None:
-            await callback.answer(texts.STALE)
+            await callback.answer(tr("stale"))
             return
         if action == "p":
             art.pinned = not art.pinned
@@ -86,7 +88,7 @@ async def on_stickers(
     elif action == "a" and arg in STICKER_EMOTIONS:  # bind a forwarded sticker
         data = await state.get_data()
         if not data.get("forwarded_sticker"):
-            await callback.answer(texts.STALE)
+            await callback.answer(tr("stale"))
             return
         file_id, unique_id = data["forwarded_sticker"], data["forwarded_unique"]
         await repo.add_art(persona_row.id, f"st:{arg}", f"tg:{unique_id}:{arg}"[:80], file_id, "", pinned=True)
@@ -97,7 +99,7 @@ async def on_stickers(
             "когда почувствует эту эмоцию. Все наборы: /stickers"
         )
     else:
-        await callback.answer(texts.STALE)
+        await callback.answer(tr("stale"))
 
 
 async def _show_emotion(

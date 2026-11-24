@@ -20,6 +20,8 @@ from bot.persona.memory import ChatMemory
 from bot.utils import esc
 from bot import menu
 
+from bot.i18n import tr
+
 log = logging.getLogger(__name__)
 router = Router(name="persona")
 
@@ -92,7 +94,7 @@ async def on_menu(
         await message.answer(ASK_REQUEST)
         return
     if persona is None:
-        await message.answer(texts.STALE)
+        await message.answer(tr("stale"))
         return
 
     card = PersonaCard.model_validate(persona.card)
@@ -165,7 +167,7 @@ async def _create(status: Message, state: FSMContext, ai: AIService, user: User,
     except AIError:
         log.exception("persona creation failed")
         await state.set_state(PersonaFlow.request)
-        await status.edit_text(texts.AI_ERROR + "\n\nМожешь прислать запрос ещё раз.")
+        await status.edit_text(tr("ai_error") + "\n\nМожешь прислать запрос ещё раз.")
         return
     await _preview(status, state, card)
 
@@ -181,7 +183,7 @@ async def on_revise(message: Message, state: FSMContext, ai: AIService, user: Us
     data = await state.get_data()
     if "card" not in data:
         await state.clear()
-        await message.answer(texts.STALE)
+        await message.answer(tr("stale"))
         return
     status = await message.answer("Переделываю… ✏️")
     try:
@@ -191,7 +193,7 @@ async def on_revise(message: Message, state: FSMContext, ai: AIService, user: Us
         )
     except AIError:
         log.exception("persona revision failed")
-        await status.edit_text(texts.AI_ERROR + "\n\nНапиши, что поменять, ещё раз.")
+        await status.edit_text(tr("ai_error") + "\n\nНапиши, что поменять, ещё раз.")
         return
     await _preview(status, state, card)
 
@@ -278,7 +280,7 @@ async def on_avatar_pick(callback: CallbackQuery, state: FSMContext, repo: Repo,
     index = int((callback.data or "av:-1").split(":")[1])
     persona = await repo.get_persona(user, data.get("avatar_persona_id") or 0)
     if persona is None or not 0 <= index < len(candidates) or not isinstance(callback.message, Message):
-        await callback.answer(texts.STALE)
+        await callback.answer(tr("stale"))
         return
     await callback.answer()
     chosen = candidates[index]
@@ -294,7 +296,7 @@ async def on_avatar_upload(message: Message, state: FSMContext, repo: Repo, user
     persona = await repo.get_persona(user, data.get("avatar_persona_id") or 0)
     await state.clear()
     if persona is None or not message.photo:
-        await message.answer(texts.STALE)
+        await message.answer(tr("stale"))
         return
     await repo.set_avatar(persona, message.photo[-1].file_id, "")
     await greet(message, repo, persona, PersonaCard.model_validate(persona.card))

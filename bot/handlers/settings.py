@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from bot.db.models import User
 from bot.db.repo import Repo
+from bot.i18n import tr
 from bot.handlers.talk import reset_conversation
 from bot.jobs.scheduler import Scheduler, parse_hours
 from bot.middlewares import AdminFilter
@@ -25,7 +26,7 @@ def _btn(text: str, data: str) -> InlineKeyboardButton:
 
 def _hours_label(value: str) -> str:
     hours = [f"{h}:00" for h in parse_hours(value)]
-    return " и ".join([", ".join(hours[:-1]), hours[-1]]) if len(hours) > 1 else (hours[0] if hours else "-")
+    return tr("remind.and").join([", ".join(hours[:-1]), hours[-1]]) if len(hours) > 1 else (hours[0] if hours else "-")
 
 
 # --- /remind ---
@@ -33,16 +34,12 @@ def _hours_label(value: str) -> str:
 
 def _remind_view(user: User) -> tuple[str, InlineKeyboardMarkup]:
     if user.reminders_enabled:
-        text = (
-            f"🔔 Напоминания <b>включены</b>: в {_hours_label(user.reminder_hours)} ({esc(user.timezone)}).\n\n"
-            "Если тебя давно нет, персонаж напишет, что скучает; если карточки ждут - позовёт повторить. "
-            "Когда ты только что был в боте, он не беспокоит."
-        )
+        text = tr("remind.on", hours=_hours_label(user.reminder_hours), tz=esc(user.timezone))
         rows = [[_btn(("✅ " if p == user.reminder_hours else "") + _hours_label(p), f"rm:h:{p}")] for p in HOUR_PRESETS]
-        rows.append([_btn("🔕 Выключить", "rm:off")])
+        rows.append([_btn(tr("remind.off_btn"), "rm:off")])
     else:
-        text = "🔕 Напоминания <b>выключены</b>."
-        rows = [[_btn("🔔 Включить", "rm:on")]]
+        text = tr("remind.off")
+        rows = [[_btn(tr("remind.on_btn"), "rm:on")]]
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -75,17 +72,17 @@ async def on_remind(callback: CallbackQuery, user: User) -> None:
 async def cmd_memory(message: Message, state: FSMContext, repo: Repo, user: User, persona: PersonaCard) -> None:
     await state.clear()
     facts = await repo.facts(user.id)
-    gender = {"male": "мужской", "female": "женский"}.get(user.gender, "")
-    lines = [f"🧠 <b>Что {esc(persona.name)} помнит о тебе</b>\n"]
+    gender = tr(f"memory.{user.gender}") if user.gender in ("male", "female") else ""
+    lines = [tr("memory.title", name=esc(persona.name))]
     if user.name:
-        lines.append(f"Имя: <b>{esc(user.name)}</b>")
+        lines.append(tr("memory.user_name", name=esc(user.name)))
     if gender:
-        lines.append(f"Род в обращении: {gender}")
+        lines.append(tr("memory.gender", g=gender))
     lines += [f"• {esc(f)}" for f in facts]
     if len(lines) == 1:
-        lines.append("Пока ничего - расскажи о себе в чате 🙂")
-    lines.append("\n<i>Это запоминается само из ваших разговоров. Повторения и слова тут не участвуют.</i>")
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[_btn("🧹 Забыть всё", "mem:ask")]])
+        lines.append(tr("memory.empty"))
+    lines.append(tr("memory.note"))
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[_btn(tr("memory.forget_btn"), "mem:ask")]])
     await message.answer("\n".join(lines), reply_markup=keyboard)
 
 
@@ -98,14 +95,14 @@ async def on_memory(callback: CallbackQuery, repo: Repo, user: User, memory: Cha
     action = (callback.data or "").split(":", 1)[1]
     if action == "ask":
         keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[[_btn("Да, забыть", "mem:wipe"), _btn("Отмена", "mem:keep")]]
+            inline_keyboard=[[_btn(tr("memory.yes_btn"), "mem:wipe"), _btn(tr("cancel"), "mem:keep")]]
         )
         await message.edit_reply_markup(reply_markup=keyboard)
     elif action == "wipe":
         await repo.forget_facts(user.id)
         await reset_conversation(memory, repo, user.id)
         user.name, user.gender = "", ""
-        await message.edit_text("🧹 Готово: персонаж забыл всё о тебе и ваши разговоры. Слова и прогресс на месте.")
+        await message.edit_text(tr("memory.wiped"))
     else:
         await message.edit_reply_markup(reply_markup=None)
 

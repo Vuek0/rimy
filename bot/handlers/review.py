@@ -17,26 +17,24 @@ from bot.db.models import Card, Deck, Persona, User
 from bot.db.repo import Repo
 from bot.handlers.speech import speech_buttons
 from bot.images import arts
-from bot.langs import get_lang
+from bot.i18n import tr
+from bot.langs import card_question, get_lang
 from bot.persona.card import PersonaCard, phrase
 from bot.persona.memory import ChatMemory
 from bot.utils import esc, format_interval, utcnow
 
 router = Router(name="review")
 
-RATINGS = {1: ("🔁", "Снова"), 2: ("😬", "Трудно"), 3: ("👍", "Хорошо"), 4: ("😎", "Легко")}
-VERDICT_LINES = {"correct": "✅ Верно!", "almost": "🟡 Почти!", "wrong": "❌ Не совсем"}
-ANSWER_HINT = "\n\n<i>💬 Ответь текстом или голосом - или открой ответ</i>"
+RATING_EMOJI = {1: "🔁", 2: "😬", 3: "👍", 4: "😎"}
 
 
 def front_text(card: Card, deck: Deck, user: User) -> str:
     word = card.word
     if card.direction == "fwd":
-        return f"{get_lang(deck.target_lang).flag} <b>{esc(word.display)}</b>\n\n<i>Как переводится?</i>"
-    target = get_lang(deck.target_lang)
+        return f"{get_lang(deck.target_lang).flag} <b>{esc(word.display)}</b>\n\n<i>{card_question('fwd', deck.target_lang, user.native_lang)}</i>"
     return (
         f"{get_lang(user.native_lang).flag} <b>{esc('; '.join(word.translations))}</b>\n\n"
-        f"<i>Как будет {target.adverb_ru}?</i>"
+        f"<i>{card_question('rev', deck.target_lang, user.native_lang)}</i>"
     )
 
 
@@ -45,10 +43,10 @@ def answer_view(card: Card, deck: Deck, user: User, suggested: int | None = None
     intervals = srs.preview(card.fsrs, utcnow())
     buttons = [
         InlineKeyboardButton(
-            text=("👉 " if rating == suggested else "") + f"{emoji} {label} · {format_interval(intervals[rating])}",
+            text=("👉 " if rating == suggested else "") + f"{emoji} {tr(f'rate.{rating}')} · {format_interval(intervals[rating], user.native_lang)}",
             callback_data=f"rate:{card.id}:{rating}",
         )
-        for rating, (emoji, label) in RATINGS.items()
+        for rating, emoji in RATING_EMOJI.items()
     ]
     text = (
         front_text(card, deck, user) + extra + "\n\n━━━━━━━━━━\n" + texts.render_word(texts.word_to_dict(card.word))
@@ -73,19 +71,19 @@ async def send_next_card(
             memory.stop_waiting(user.id)
         next_at = await repo.next_due_at(deck.id)
         if next_at is None:
-            await message.answer("В колоде пока нет слов. Пришли мне слово - и начнём! ✨")
+            await message.answer(tr("review.empty"))
         else:
-            done = phrase(persona, "review_done", ["На сейчас всё повторено! 🎉"])
-            text = f"{esc(done)}\nСледующая карточка через {format_interval(next_at - now)}."
+            done = phrase(persona, "review_done", [tr("review_done")])
+            text = f"{esc(done)}\n" + tr("review.next_in", t=format_interval(next_at - now, user.native_lang))
             if not await arts.send_reaction(message, repo, persona_row, persona, "review_done", text):
                 await message.answer(text)
         return
     left = await repo.count_due(deck.id, now)
-    header = f"<i>Осталось: {left}</i>\n\n" if left > 1 else ""
-    rows = [[InlineKeyboardButton(text="👀 Показать ответ", callback_data=f"show:{card.id}")]]
+    header = tr("review.left", n=left) if left > 1 else ""
+    rows = [[InlineKeyboardButton(text=tr("review.show_btn"), callback_data=f"show:{card.id}")]]
     if card.direction == "fwd":  # the front is the foreign word: hearing it gives nothing away
         rows[0].append(InlineKeyboardButton(text="🔊", callback_data=f"tts:w:{card.word_id}"))
-    hint = ANSWER_HINT if memory is not None else ""
+    hint = tr("review.answer_hint") if memory is not None else ""
     sent = await message.answer(
         header + front_text(card, deck, user) + hint, reply_markup=InlineKeyboardMarkup(inline_keyboard=rows)
     )
@@ -133,7 +131,7 @@ async def on_show(callback: CallbackQuery, repo: Repo, user: User, deck: Deck, m
     card = await repo.get_card(int((callback.data or "").split(":")[1]))
     message = callback.message
     if card is None or not isinstance(message, Message):
-        await callback.answer(texts.STALE)
+        await callback.answer(tr("stale"))
         return
     await callback.answer()
     memory.stop_waiting(user.id)
@@ -185,7 +183,7 @@ async def answer_card(
     question, expected, lang = expected_answer(card, deck, user)
     quota = await billing.try_consume(user, "check", utcnow()) if billing is not None else None
     if quota is not None and quota.refused:
-        check = AnswerCheck("unknown", 0, "AI-проверки на сегодня закончились - сравни сам(а) и выбери оценку. /premium ⭐")
+        check = AnswerCheck("unknown", 0, tr("review.checks_over"))
     else:
         try:
             check = await ai.check_answer(
@@ -201,8 +199,8 @@ async def answer_card(
         await message.bot.edit_message_reply_markup(chat_id=chat_id, message_id=card_message_id, reply_markup=None)
     except Exception:
         pass
-    heard = f"\n\n🎧 Ты сказал(а): <b>{esc(answer)}</b>" if voice else f"\n\n✍️ Твой ответ: <b>{esc(answer)}</b>"
-    verdict = VERDICT_LINES.get(check.verdict, "")
+    heard = "\n\n" + (tr("review.you_said", a=esc(answer)) if voice else tr("review.your_answer", a=esc(answer)))
+    verdict = tr(f"verdict.{check.verdict}") if check.verdict in ("correct", "almost", "wrong") else ""
     comment = f"\n<i>{esc(check.comment)}</i>" if check.comment else ""
     text, keyboard = answer_view(card, deck, user, check.rating or None, heard + (f"\n{verdict}" if verdict else "") + comment)
     await message.answer(text, reply_markup=keyboard)
@@ -224,11 +222,11 @@ async def on_rate(
     card = await repo.card_of_deck(deck.id, int(card_id))
     message = callback.message
     if card is None or not isinstance(message, Message):
-        await callback.answer(texts.STALE)
+        await callback.answer(tr("stale"))
         return
     last = await repo.last_review_at(card.id)
     if last is not None and last >= message.date:
-        await callback.answer("Уже оценено 🙂")
+        await callback.answer(tr("review.already"))
         return
     await callback.answer()
 
@@ -238,14 +236,14 @@ async def on_rate(
     await repo.record_review(card, rating, new_state, due, now)
     await billing.track_once(user.id, "first_review", now, source="bot")
 
-    emoji, label = RATINGS[rating]
+    emoji, label = RATING_EMOJI[rating], tr(f"rate.{rating}")
     if rating == 1:
-        reaction = phrase(persona, "wrong", ["Ничего, повторим! 💪"])
+        reaction = phrase(persona, "wrong", [tr("wrong")])
     else:
-        reaction = phrase(persona, "correct", ["Отлично! ✨"])
+        reaction = phrase(persona, "correct", [tr("correct")])
     await message.edit_text(
         message.html_text
-        + f"\n\n{emoji} {label} · следующий раз через {format_interval(due - now)}\n<i>{esc(reaction)}</i>"
+        + f"\n\n{emoji} {label} · " + tr("review.next_time", t=format_interval(due - now, user.native_lang)) + f"\n<i>{esc(reaction)}</i>"
     )
     await arts.send_reaction(message, repo, persona_row, persona, "wrong" if rating == 1 else "correct")
     await send_next_card(message, repo, user, deck, persona, persona_row, just_reviewed=card.id, memory=memory)

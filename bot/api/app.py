@@ -458,7 +458,7 @@ def create_app(
     @app.post("/api/premium/invoice")
     async def invoice(c: C) -> dict[str, str]:
         await c.billing.track(c.user.id, "paywall_view", utcnow(), source="app")
-        return {"link": await premium_invoice_link(bot, settings)}
+        return {"link": await premium_invoice_link(bot, settings, c.user.native_lang)}
 
     @app.get("/api/health")
     async def health() -> dict[str, bool]:

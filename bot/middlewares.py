@@ -11,6 +11,7 @@ from bot.billing import Billing
 from bot.config import Settings
 from bot.db.models import User
 from bot.db.repo import Repo
+from bot.i18n import set_lang
 from bot.persona.card import PersonaCard
 from bot.persona.memory import ChatMemory
 from bot.utils import utcnow
@@ -58,6 +59,7 @@ class DbMiddleware(BaseMiddleware):
                 )
                 data["user"].first_name = (tg_user.first_name or "")[:100]
                 data["user"].username = (tg_user.username or "")[:64]
+                set_lang(data["user"].native_lang)  # every tr() in this update speaks the user's language
                 data["persona_row"] = await repo.active_persona(data["user"])
                 data["persona"] = PersonaCard.model_validate(data["persona_row"].card)
                 if (memory := data.get("memory")) is not None:

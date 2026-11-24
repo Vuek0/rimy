@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -24,6 +23,8 @@ from bot.persona.card import PersonaCard, markdown_to_html
 from bot.persona.context import context_block, snapshot
 from bot.utils import utcnow
 
+from bot.i18n import tr, set_lang
+
 log = logging.getLogger(__name__)
 
 TICK_SECONDS = 300
@@ -34,14 +35,8 @@ BACKUP_HOUR = 3  # local time
 BACKUP_KEY = "last_backup_date"
 SEND_PAUSE = 0.05  # seconds between reminders to different users
 
-FALLBACK = {
-    "review": ["Карточки ждут тебя! Пара минут - и всё повторим ✨", "Dai, время повторения! 📚"],
-    "miss_you": ["Я скучаю… Заглянешь повторить пару слов? 🥺", "Тебя давно не было! Возвращайся, я жду 💫"],
-    "backup": ["Сохранила все наши слова в надёжное место 💾", "Держи копию нашей колоды - на всякий случай 💾"],
-}
-START_REVIEW_KB = InlineKeyboardMarkup(
-    inline_keyboard=[[InlineKeyboardButton(text="📚 Начать повторение", callback_data="rv:start")]]
-)
+def start_review_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=tr("review.start_btn"), callback_data="rv:start")]])
 
 
 def parse_hours(value: str) -> list[int]:
@@ -119,6 +114,7 @@ class Scheduler:
         if slot is None or (user.last_reminded_at and user.last_reminded_at >= slot):
             return False
         user.last_reminded_at = now  # one try per slot, whatever happens below
+        set_lang(user.native_lang)  # outside an update: speak this user's language
         _, deck = await repo.ensure_user(
             user.id, native_lang=user.native_lang, timezone=user.timezone, target_lang=self.settings.default_target_lang
         )
@@ -136,8 +132,8 @@ class Scheduler:
         await arts.send_reaction(target, repo, persona_row, card, "nudge", emotion=emotion, force=True)
         text = markdown_to_html(nudge.text)
         if decision.due:
-            text += f"\n\n📚 Карточек к повторению: <b>{decision.due}</b>"
-        await target.answer(text, reply_markup=START_REVIEW_KB if decision.due else None)
+            text += tr("review.due", n=decision.due)
+        await target.answer(text, reply_markup=start_review_kb() if decision.due else None)
         log.info("sent a %s reminder to %s", decision.kind, user.id)
         return True
 
@@ -146,7 +142,7 @@ class Scheduler:
             return await self.ai.nudge(card, kind, target, native, context)
         except AIError:
             log.warning("nudge generation failed, using a canned line")
-            return Nudge(random.choice(FALLBACK[kind]), "sad" if kind == "miss_you" else "happy")
+            return Nudge(tr(f"nudge.{kind}"), "sad" if kind == "miss_you" else "happy")
 
     # --- daily backup ---
 

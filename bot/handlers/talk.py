@@ -22,6 +22,8 @@ from bot.persona.memory import ChatMemory
 from bot.utils import norm, utcnow
 from bot import menu
 
+from bot.i18n import tr
+
 log = logging.getLogger(__name__)
 router = Router(name="talk")
 
@@ -68,21 +70,21 @@ def add_word_buttons(new: list[SuggestedWord], known: list[SuggestedWord] = ()) 
         for w in new
         if len(f"aw:{w.word}".encode()) <= MAX_CALLBACK_BYTES
     ]
-    rows += [[InlineKeyboardButton(text=f"✅ {w.word} - уже в колоде", callback_data="awknown")] for w in known]
+    rows += [[InlineKeyboardButton(text=tr("talk.in_deck", w=w.word), callback_data="awknown")] for w in known]
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 def words_hint(new: list, known: list) -> str:
     if new:
-        return "\n\n<i>👇 Слова из ответа можно добавить себе в колоду - жми ➕</i>"
+        return tr("talk.hint_new")
     if known:
-        return "\n\n<i>✅ Все слова отсюда уже есть в твоей колоде</i>"
+        return tr("talk.hint_known")
     return ""
 
 
 @router.callback_query(F.data == "awknown")
 async def on_known_word(callback: CallbackQuery) -> None:
-    await callback.answer("Это слово уже есть в колоде 🙂")
+    await callback.answer(tr("talk.known_alert"))
 
 
 def _mentioned(replied: str, history: list[dict[str, str]]) -> bool:
@@ -121,7 +123,7 @@ async def answer_as_persona(
         )
     except AIError:
         log.exception("persona reply failed")
-        await status.edit_text(texts.AI_ERROR)
+        await status.edit_text(tr("ai_error"))
         return
     memory.add(user.id, "user", text)
     memory.add(user.id, "assistant", reply.text)
@@ -172,9 +174,7 @@ async def cmd_practice(
     lang = get_lang(deck.target_lang)
     if user.practice_mode:
         await message.answer(
-            f"🗣 Режим практики включён! {persona.name} будет болтать с тобой {lang.adverb_ru} и поправлять ошибки.\n\n"
-            "Слова в колоду добавляются как обычно: пришли одно слово или нажми ➕ под ответом.\n"
-            "Выключить: /practice"
+            tr("practice.on", name=persona.name, lang=lang.adverb_ru if user.native_lang == "ru" else lang.name(user.native_lang))
         )
     else:
-        await message.answer(f"Режим практики выключен. {persona.name} снова говорит по-русски 🙂")
+        await message.answer(tr("practice.off", name=persona.name))

@@ -11,6 +11,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from bot import texts
 from bot.db.models import Deck, User
 from bot.db.repo import Repo
+from bot.i18n import tr
 from bot.langs import get_lang
 from bot.utils import compute_streak, esc, utcnow
 from bot import menu
@@ -27,10 +28,10 @@ async def cmd_list(message: Message, state: FSMContext, repo: Repo, deck: Deck) 
     lang = get_lang(deck.target_lang)
     total = await repo.count_words(deck.id)
     if total == 0:
-        await message.answer("В колоде пока пусто. Пришли мне слово! ✨")
+        await message.answer(tr("words.empty"))
         return
     words = await repo.list_words(deck.id, LIST_LIMIT)
-    lines = [f"{lang.flag} <b>Слова ({total})</b>" + (f", последние {LIST_LIMIT}:" if total > LIST_LIMIT else ":")]
+    lines = [f"{lang.flag} <b>" + tr("words.title", n=total) + "</b>" + (tr("words.last", n=LIST_LIMIT) if total > LIST_LIMIT else ":")]
     lines += [f"• <b>{esc(w.display)}</b> - {esc('; '.join(w.translations))}" for w in words]
     await message.answer("\n".join(lines))
 
@@ -40,11 +41,11 @@ async def cmd_delete(message: Message, command: CommandObject, state: FSMContext
     await state.clear()
     query = (command.args or "").strip()
     if not query:
-        await message.answer("Напиши так: <code>/delete casa</code>")
+        await message.answer(tr("delete.usage"))
         return
     found = await repo.find_words(deck.id, query)
     if not found:
-        await message.answer(f"Не нашла «{esc(query)}» в колоде 🤔")
+        await message.answer(tr("delete.not_found", q=esc(query)))
         return
     rows = [
         [
@@ -54,8 +55,8 @@ async def cmd_delete(message: Message, command: CommandObject, state: FSMContext
         ]
         for w in found[:5]
     ]
-    rows.append([InlineKeyboardButton(text="Отмена", callback_data="del:no")])
-    await message.answer("Что удалить?", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+    rows.append([InlineKeyboardButton(text=tr("cancel"), callback_data="del:no")])
+    await message.answer(tr("delete.what"), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
 
 
 @router.callback_query(F.data.startswith("del:"))
@@ -66,15 +67,15 @@ async def on_delete(callback: CallbackQuery, repo: Repo, deck: Deck) -> None:
         return
     choice = (callback.data or "").split(":", 1)[1]
     if choice == "no":
-        await message.edit_text("Ладно, ничего не удаляю 🙂")
+        await message.edit_text(tr("delete.nothing"))
         return
     word = await repo.get_word(int(choice))
     if word is None or word.deck_id != deck.id:
-        await message.edit_text(texts.STALE)
+        await message.edit_text(tr("stale"))
         return
     display = word.display
     await repo.delete_word(word.id)
-    await message.edit_text(f"Удалила <b>{esc(display)}</b> 🗑")
+    await message.edit_text(tr("delete.done", w=esc(display)))
 
 
 @router.message(Command("stats"))
@@ -94,9 +95,6 @@ async def cmd_stats(message: Message, state: FSMContext, repo: Repo, user: User,
 
     lang = get_lang(deck.target_lang)
     await message.answer(
-        f"📊 {lang.flag} <b>{lang.name_ru}</b>\n\n"
-        f"Слов в колоде: <b>{total}</b>\n"
-        f"К повторению сейчас: <b>{due}</b>\n"
-        f"Повторено сегодня: <b>{reviewed_today}</b>\n"
-        f"🔥 Серия: <b>{streak}</b> дн."
+        f"📊 {lang.flag} <b>{lang.name(user.native_lang)}</b>\n\n"
+        + tr("stats.body", total=total, due=due, today=reviewed_today, streak=streak)
     )

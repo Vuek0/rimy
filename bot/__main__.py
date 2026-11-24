@@ -21,6 +21,7 @@ from bot.images import arts, booru
 from bot.jobs.scheduler import Scheduler
 from bot.middlewares import DbMiddleware
 from bot.persona.memory import ChatMemory
+from bot.i18n import COMMANDS as I18N_COMMANDS
 from bot.profile import set_profile
 
 WEBAPP_DIR = Path(__file__).resolve().parent.parent / "webapp" / "dist"  # built Mini App (npm run build)
@@ -70,6 +71,10 @@ async def main() -> None:
     dp.errors.register(on_error)  # no silent failures: log + tell the user
 
     await bot.set_my_commands(COMMANDS)
+    for code in ("uz", "en"):  # the "/" menu in the user's Telegram language
+        await bot.set_my_commands(
+            [BotCommand(command=c, description=d) for c, d in I18N_COMMANDS[code]], language_code=code
+        )
     await set_profile(bot)  # "What can this bot do?" and the profile text, in ru / uz / en
     if settings.webapp_url:  # the button next to the input field opens the Mini App
         await bot.set_chat_menu_button(

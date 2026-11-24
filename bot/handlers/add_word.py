@@ -25,6 +25,7 @@ from bot.persona.card import PersonaCard, phrase
 from bot.persona.memory import ChatMemory
 from bot.utils import esc, norm, utcnow
 from bot import menu
+from bot.i18n import tr
 
 log = logging.getLogger(__name__)
 router = Router(name="add_word")
@@ -50,12 +51,13 @@ def _short(text: str, limit: int = 40) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-CONFIRM_KB = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [_btn("✅ Сохранить", "add:save")],
-        [_btn("✏️ Свой перевод", "add:edit"), _btn("❌ Отмена", "add:cancel")],
-    ]
-)
+def confirm_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn(tr("add.save_btn"), "add:save")],
+            [_btn(tr("add.edit_btn"), "add:edit"), _btn(tr("add.cancel_btn"), "add:cancel")],
+        ]
+    )
 
 
 def make_draft(analysis: WordAnalysis, senses: list[Sense], fallback: str) -> dict[str, Any]:
@@ -82,11 +84,11 @@ async def on_custom_translation(message: Message, state: FSMContext, repo: Repo,
     draft = data.get("draft")
     if not draft:
         await state.clear()
-        await message.answer(texts.STALE)
+        await message.answer(tr("stale"))
         return
     translations = [part.strip() for part in re.split(r"[;,\n]", message.text or "") if part.strip()]
     if not translations:
-        await message.answer("Напиши перевод текстом 🙂")
+        await message.answer(tr("add.write_translation"))
         return
     draft["translations"] = translations
     status = await message.answer("👌")
@@ -108,11 +110,11 @@ async def on_text(
 ) -> None:
     text = (message.text or "").strip()
     if len(text) > MAX_MESSAGE_CHARS:
-        await message.answer(texts.TOO_LONG)
+        await message.answer(tr("too_long"))
         return
     await state.clear()
     if memory.waiting_answer(user.id) and len(text) <= MAX_INPUT_CHARS:  # an answer to the open review card?
-        status = await message.answer("Проверяю… 🔎")
+        status = await message.answer(tr("add.checking"))
         if await review.answer_card(message, text, False, ai, repo, user, deck, persona, memory, billing=billing):
             await status.delete()
             return
@@ -142,17 +144,17 @@ async def on_voice(
     media = message.voice or message.audio
     assert media is not None
     if media.duration and media.duration > MAX_VOICE_SECONDS:
-        await message.answer(f"Голосовое длинновато 😅 До {MAX_VOICE_SECONDS} секунд, пожалуйста.")
+        await message.answer(tr("add.voice_too_long", n=MAX_VOICE_SECONDS))
         return
     await state.clear()
     quota = await billing.try_consume(user, "voice", utcnow())
     if quota.refused:
-        await message.answer(billing.limit_message(quota) + "\n\nА текстом слово можно прислать прямо сейчас ✍️")
+        await message.answer(billing.limit_message(quota, user.native_lang) + tr("add.text_now"))
         return
-    status = await message.answer("Слушаю… 🎧")
+    status = await message.answer(tr("add.listening"))
     buffer = await bot.download(media)
     if buffer is None:
-        await status.edit_text("Не получилось скачать голосовое 😿")
+        await status.edit_text(tr("add.download_failed"))
         return
     # An answer to the open review card is expected in a known language: tell speech recognition first
     waiting = memory.waiting_answer(user.id)
@@ -165,13 +167,13 @@ async def on_voice(
         heard = await ai.transcribe(buffer.read(), media.mime_type or "audio/ogg", expect, other, force)
     except AIError:
         log.exception("transcription failed")
-        await status.edit_text(texts.AI_ERROR)
+        await status.edit_text(tr("ai_error"))
         return
     if not heard:
-        await status.edit_text("Не расслышала 😿 Попробуй ещё раз, чуть чётче.")
+        await status.edit_text(tr("add.not_heard"))
         return
     if card is not None:
-        await status.edit_text(f"🎧 Расслышала: <b>{esc(heard)}</b>\nПроверяю… 🔎")
+        await status.edit_text(tr("add.heard", text=esc(heard)) + "\n" + tr("add.checking"))
         if await review.answer_card(message, heard, True, ai, repo, user, deck, persona, memory, billing=billing):
             await status.delete()
             return
@@ -212,7 +214,7 @@ async def dispatch(
     While a conversation is going on, even a one-word message may be an answer, so the AI decides
     (seeing what the persona said last) instead of the quick "1-3 words = a word" rule.
     """
-    prefix = f"🎧 Расслышала: <b>{esc(text)}</b>\n\n" if heard else ""
+    prefix = tr("add.heard", text=esc(text)) + "\n\n" if heard else ""
     previous = replied or (memory.last_reply(user.id) if memory.in_conversation(user.id) else "")
     word = text
     if previous or user.practice_mode or not looks_like_word(text):
@@ -220,7 +222,7 @@ async def dispatch(
             route = await ai.route(text, deck.target_lang, user.native_lang, previous)
         except AIError:
             log.exception("routing failed")
-            await status.edit_text(texts.AI_ERROR)
+            await status.edit_text(tr("ai_error"))
             return
         if route.intent != "word":
             # a voice message was already counted as "voice": one message = one action from the quota
@@ -234,7 +236,7 @@ async def dispatch(
         word = route.word or text
     memory.end_conversation(user.id)  # adding words now: the next short messages are words again
     if len(word) > MAX_INPUT_CHARS:
-        await status.edit_text(prefix + texts.TOO_LONG)
+        await status.edit_text(prefix + tr("too_long"))
         return
     if not heard and not await _consume(status, billing, user, "word", prefix):
         return
@@ -268,7 +270,7 @@ async def analyze_and_handle(
         analysis = await ai.analyze_text(word, deck.target_lang, user.native_lang, meaning, context)
     except AIError:
         log.exception("text analysis failed")
-        await status.edit_text(texts.AI_ERROR)
+        await status.edit_text(tr("ai_error"))
         return
     await handle_analysis(status, state, repo, deck, analysis, original=word, prefix=prefix)
 
@@ -320,16 +322,16 @@ async def handle_analysis(
             original=original, suggestions=suggestions, analysis=analysis.model_dump(), prefix=prefix
         )
         rows = [[_btn(f"✨ {_short(s)}", f"fix:{i}")] for i, s in enumerate(suggestions)]
-        rows.append([_btn(f"Оставить «{_short(original, 30)}»", "fix:keep")])
+        rows.append([_btn(tr("add.keep", word=_short(original, 30)), "fix:keep")])
         await status.edit_text(
-            f"{prefix}Хм, «<b>{esc(original)}</b>»…{issues}\n\nМожет, имелось в виду:",
+            prefix + tr("add.did_you_mean", word=esc(original), issues=issues),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
         )
         return
 
     if not analysis.is_valid and not analysis.senses:
         await state.clear()
-        await status.edit_text(f"{prefix}Не нашла такого слова 🤔{issues}\n\nПроверь написание и пришли ещё раз.")
+        await status.edit_text(prefix + tr("add.not_found", issues=issues))
         return
 
     await go_senses(status, state, repo, deck, analysis, original, prefix)
@@ -349,13 +351,13 @@ async def on_fix(callback: CallbackQuery, state: FSMContext, ai: AIService, repo
         word = data["original"]
     else:
         word = data["suggestions"][int(choice)]
-        await message.edit_text(f"Смотрю «{esc(word)}»… 🔎")
+        await message.edit_text(tr("add.looking", word=esc(word)))
         try:
             analysis = await ai.analyze_text(word, deck.target_lang, user.native_lang)
         except AIError:
             log.exception("re-analysis failed")
             await state.clear()
-            await message.edit_text(texts.AI_ERROR)
+            await message.edit_text(tr("ai_error"))
             return
     await go_senses(message, state, repo, deck, analysis, word, prefix)
 
@@ -370,8 +372,7 @@ async def go_senses(
         await state.set_state(AddWord.edit)
         await state.update_data(draft=draft)
         await message.edit_text(
-            f"{prefix}Не смогла подобрать перевод для <b>{esc(draft['display'])}</b> 😿\n"
-            "Напиши перевод сам(а), можно несколько через запятую."
+            prefix + tr("add.no_translation", word=esc(draft["display"]))
         )
         return
 
@@ -387,9 +388,9 @@ async def go_senses(
         for i, s in enumerate(senses)
     ]
     rows = [[_btn(f"{i + 1}. {_short(s.translation)}", f"sense:{i}")] for i, s in enumerate(senses)]
-    rows.append([_btn("📚 Все значения", "sense:all")])
+    rows.append([_btn(tr("add.all_senses"), "sense:all")])
     await message.edit_text(
-        f"{prefix}У <b>{esc(display)}</b> несколько значений. Какое сохраним?\n\n" + "\n".join(lines),
+        prefix + tr("add.which_sense", word=esc(display)) + "\n\n" + "\n".join(lines),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
     )
 
@@ -417,8 +418,8 @@ async def show_preview(
     duplicates = await repo.find_duplicates(deck.id, draft["lemma"])
     if duplicates:
         existing = "; ".join(t for d in duplicates for t in d.translations)
-        text += f"\n\n⚠️ Это слово уже есть в колоде: <i>{esc(existing)}</i>"
-    await message.edit_text(text, reply_markup=CONFIRM_KB)
+        text += tr("add.duplicate", t=esc(existing))
+    await message.edit_text(text, reply_markup=confirm_kb())
 
 
 @router.callback_query(AddWord.confirm, F.data.startswith("add:"))
@@ -447,7 +448,7 @@ async def on_confirm(
         await billing.track(user.id, "word_saved", now, source="bot", lang=deck.target_lang)
         await state.clear()
         await message.edit_text(
-            texts.render_word(draft) + f"\n\n{esc(phrase(persona, 'saved', texts.SAVED))} Повторим в /review",
+            texts.render_word(draft) + f"\n\n{esc(phrase(persona, 'saved', texts.SAVED))} " + tr("add.review_later"),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[speech_buttons(word)]),
         )
         # A sticker only for something worth celebrating, not for every saved word.
@@ -457,10 +458,10 @@ async def on_confirm(
     elif action == "edit":
         await state.set_state(AddWord.edit)
         await message.edit_reply_markup(reply_markup=None)
-        await message.answer("Напиши свой перевод, можно несколько через запятую ✏️")
+        await message.answer(tr("add.own_translation"))
     else:
         await state.clear()
-        await message.edit_text(texts.render_word(draft) + "\n\nОкей, не сохраняю 🙂")
+        await message.edit_text(texts.render_word(draft) + "\n\n" + tr("add.not_saving"))
 
 
 # --- milestones: the only time saving a word gets a sticker ---
@@ -474,12 +475,12 @@ async def word_milestone(repo: Repo, deck_id: int, word_id: int, timezone: str, 
     """Text to celebrate with, or None. Checked right after a word is saved."""
     total = await repo.count_words(deck_id)
     if total in TOTAL_MILESTONES or (total > 1000 and total % 500 == 0):
-        return f"🎉 Уже <b>{total}</b> слов в колоде!"
+        return tr("milestone.total", n=total)
     previous = await repo.previous_word_at(deck_id, word_id)
     if previous is not None and now - previous >= COMEBACK_AFTER:
-        return f"🤗 С возвращением! Прошлое слово было {(now - previous).days} дн. назад"
+        return tr("milestone.comeback", n=(now - previous).days)
     tz = ZoneInfo(timezone)
     midnight = now.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     if await repo.count_words_since(deck_id, midnight) == DAILY_MILESTONE:
-        return f"🔥 {DAILY_MILESTONE} новых слов за сегодня!"
+        return tr("milestone.daily", n=DAILY_MILESTONE)
     return None

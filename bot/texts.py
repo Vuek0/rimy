@@ -99,7 +99,7 @@ def help_text(lang: Lang, greeting: str, native: str = "ru") -> str:
     if native != "ru":  # the mascot's canned phrases are Russian: use the localized greeting instead
         greeting = ui(native, "greeting")
     return (
-        f"{esc(greeting)}\n\n{ui(native, 'learning')}: {lang.flag} <b>{esc(lang.english if native == 'en' else lang.name_ru)}</b>.\n\n"
+        f"{esc(greeting)}\n\n{ui(native, 'learning')}: {lang.flag} <b>{esc(lang.name(native))}</b>.\n\n"
         + ui(native, "help")
     )
 

@@ -15,6 +15,8 @@ from bot.langs import BASE_LANGS, LANGS, get_lang, learnable
 from bot.persona.card import PersonaCard, phrase
 from bot.utils import utcnow
 
+from bot.i18n import tr
+
 router = Router(name="common")
 fallback_router = Router(name="fallback")
 
@@ -121,7 +123,7 @@ async def on_base(
 async def cmd_app(message: Message, settings: Settings, user: User) -> None:
     keyboard = app_keyboard(settings, user.native_lang)
     if keyboard is None:
-        await message.answer("Приложение скоро появится 🙂 А пока всё работает прямо здесь, в чате.")
+        await message.answer(tr("app.soon"))
         return
     await message.answer("👇", reply_markup=keyboard)
 
@@ -145,7 +147,7 @@ async def on_language_menu(message: Message, state: FSMContext, user: User, deck
     await state.clear()
     title, base_label, target_label = LANGUAGE_MENU.get(user.native_lang, LANGUAGE_MENU["ru"])
     target = get_lang(deck.target_lang)
-    target_name = target.english if user.native_lang == "en" else target.name_ru
+    target_name = target.name(user.native_lang)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=base_label.format(base=BASE_LANGS.get(user.native_lang, user.native_lang)), callback_data="lm:base")],
         [InlineKeyboardButton(text=target_label.format(target=f"{target.flag} {target_name}"), callback_data="lm:target")],
@@ -168,7 +170,7 @@ async def on_language_choice(callback: CallbackQuery, user: User) -> None:
 @router.message(Command("cancel"))
 async def cmd_cancel(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Окей, отменил 🙂")
+    await message.answer(tr("cancel.done"))
 
 
 @router.message(Command("lang"))
@@ -198,23 +200,23 @@ async def on_lang(
 
 async def _switch(message: Message, repo: Repo, user: User, code: str) -> Deck | None:
     if code not in LANGS or code == user.native_lang:
-        await message.answer("Такого языка я пока не знаю 🤔 Выбери из списка: /lang")
+        await message.answer(tr("lang.unknown"))
         return None
     deck = await repo.switch_language(user, code)
     lang = get_lang(code)
     count = await repo.count_words(deck.id)
-    await message.answer(f"{lang.flag} <b>{lang.english if user.native_lang == 'en' else lang.name_ru}</b> - {count} 📚")
+    await message.answer(f"{lang.flag} <b>{lang.name(user.native_lang)}</b> - {count} 📚")
     return deck
 
 
 @fallback_router.callback_query()
 async def stale_callback(callback: CallbackQuery) -> None:
-    await callback.answer(texts.STALE)
+    await callback.answer(tr("stale"))
 
 
 @fallback_router.message()
 async def unknown_message(message: Message) -> None:
     if message.text and message.text.startswith("/"):
-        await message.answer("Не знаю такой команды 🤔 /help")
+        await message.answer(tr("cmd.unknown"))
     else:
-        await message.answer("Я пока понимаю только текст и голосовые 🙂 /help")
+        await message.answer(tr("msg.unsupported"))
