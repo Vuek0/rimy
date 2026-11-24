@@ -127,7 +127,7 @@ def quota_error(billing: Billing, quota: Quota) -> HTTPException:
 def create_app(
     settings: Settings, sessionmaker: async_sessionmaker, ai: AIService, bot: Bot, static_dir: Path | None = None
 ) -> FastAPI:
-    app = FastAPI(title="lang-lrn API", docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app = FastAPI(title="Rimy API", docs_url="/api/docs", openapi_url="/api/openapi.json")
     tts_cache: OrderedDict[str, bytes] = OrderedDict()
 
     async def ctx(authorization: Annotated[str, Header()] = "") -> AsyncIterator[Ctx]:

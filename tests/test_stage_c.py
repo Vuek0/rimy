@@ -217,5 +217,5 @@ async def test_backup_once_a_day(repo, tmp_path):
     assert await s.maybe_backup(repo, _at(3, 10))
     doc = [m for m in bot.sent if m[0] == "document"]
     # the whole DB holds every user's data: it goes to the admins (owner_id=1) only
-    assert len(doc) == 1 and doc[0][1].filename == "lang-lrn-bot-2026-11-20.db.gz" and "Пользователей" in doc[0][2]
+    assert len(doc) == 1 and doc[0][1].filename == "rimy-2026-11-20.db.gz" and "Пользователей" in doc[0][2]
     assert not await s.maybe_backup(repo, _at(15))  # already done today

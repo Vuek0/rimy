@@ -170,7 +170,7 @@ class Scheduler:
         for admin_id in self.settings.admins:
             await self.bot.send_document(
                 admin_id,
-                BufferedInputFile(data, filename=f"lang-lrn-bot-{date}.db.gz"),
+                BufferedInputFile(data, filename=f"rimy-{date}.db.gz"),
                 caption=f"💾 Бэкап базы за {date}\n👥 Пользователей: <b>{users}</b>",
             )
         log.info("backup sent to %d admin(s) (%d KB)", len(self.settings.admins), len(data) // 1024)

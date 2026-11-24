@@ -1,154 +1,188 @@
-# lang-lrn-bot
+# 🦥 Rimy
 
-A Telegram bot + Mini App for learning foreign words: send a word by text or voice, the AI builds the
-flashcard, and spaced repetition (FSRS, as in Anki) makes it stick. A mascot tutor reminds you in Telegram.
+**Rimy** is a Telegram bot and Mini App for learning foreign words. Say a word in a voice message (or type it),
+and the AI builds a flashcard for you: dictionary form, translation, meaning, example and pronunciation.
+Spaced repetition (FSRS, the algorithm modern Anki uses) shows each word right before you would forget it,
+and Rimy the sloth reminds you to review, right in Telegram.
 
-## Product (hackathon version)
+- Bot: [@rimy_ai_bot](https://t.me/rimy_ai_bot)
+- Built at the Mars IT × Techstars Startup Week Tashkent 2026 hackathon
 
-- **Multi-user.** Anyone can use the bot; `/backup` and `/admin` are for `ADMIN_IDS` only.
-- **Telegram Mini App** (`webapp/`, React + Vite + TypeScript): add words by text or **voice** (mic button),
-  review cards (answer by text or voice, AI checks it), word list with pronunciation, stats, language switch.
-  It talks to a FastAPI backend (`bot/api/`) that runs in the same process as the bot. Every request is
-  authenticated with Telegram's signed `initData` — no logins.
-- **Freemium.** Free plan: a few AI actions a day (`FREE_*_PER_DAY`); reviewing cards is always free.
-  **Premium** is a 30-day Telegram Stars subscription (`/premium` in the chat, or the paywall in the app).
-- **Analytics.** Funnel events (`start → first_word → first_review → app_open → limit_reached →
-  paywall_view → purchase`) are stored in the `events` table. Deep links `t.me/<bot>?start=ref_<code>`
-  record where a user came from. `/admin [days]` shows users, the funnel, leads per ref code and Stars earned.
-- **Mascot.** The tutor is the app's mascot for everyone (`bot/persona/card.py`, `MASCOT_NAME`).
+## Why
 
-### Mini App: development
+Apps like Anki work, but you have to type every card by hand. Courses like Duolingo teach their own phrases,
+not the words you meet at work, in a series or in an IELTS book. Rimy keeps the science of spaced repetition
+and removes the manual work: one voice message and the card is ready, with no app to install and no sign-up.
 
-```bash
-cd webapp && npm install && npm run dev   # Vite on :5173, proxies /api to the bot on :8080
-npm run build                              # webapp/dist, served by the bot's API at /
-```
-
-In @BotFather set the Mini App URL to `WEBAPP_URL` (HTTPS). Locally you can expose :8080 with any HTTPS tunnel.
-
-The bot's interface is in Russian; the language you learn is configurable (Italian by default, plus English, Spanish, French, German, Portuguese, Japanese, Korean, Chinese, Turkish).
+**For whom:** students preparing for IELTS / CEFR, people learning Korean, Turkish, German or English for work
+and relocation, and language schools (B2B).
 
 ## Features
 
-- **Add words by text or voice.** The AI (Groq / OpenAI / Gemini) translates the word, checks spelling and the dictionary form, asks which meaning you want, and shows a card preview before saving.
-- **Anki-style review.** Spaced repetition with FSRS, cards in both directions (IT→RU and RU→IT), grades Again / Hard / Good / Easy.
-- **Answer cards by text or voice.** The AI checks your answer, allowing synonyms and small typos. For spoken answers it tells you which sound to work on. The persona comments on the answer and the suggested grade is marked 👉, but you always pick the grade yourself.
-- **Pronunciation** 🔊. A native neural voice reads the word and its example (Microsoft Edge TTS, free). The voice matches the persona's gender, and each phrase is synthesized once and then cached.
-- **Several languages**, each with its own deck (`/lang`).
-- **Persona tutor** (`/persona`). The bot talks as any character: someone from an anime, manga or game (details come from AniList, plus Fandom when it's reachable), or an original character described in your own words. You can edit the character card in plain language. The default persona is Roxy.
-- **Character art.**
-  - Pick an avatar from real artwork on Danbooru (Safebooru as a fallback) or upload your own.
-  - Only general-rated art is used, and anything tagged as AI-generated is filtered out.
-- **Sticker reactions.** The persona sometimes reacts with an emotion sticker:
-  - **reviewing cards** — sad after a mistake, happy after a right answer, always at the end of a session;
-  - **small talk** — sometimes, when the AI sees a strong emotion (you passed an exam, you feel down);
-  - **saving words** — only for milestones: 25/50/100/… words in the deck, 10 words in a day, coming back after a break;
-  - **answers to questions and explanations** — never.
+- **Voice-first word capture.** Send a voice message or text; speech recognition (Whisper) plus an LLM turn it
+  into a card. The AI fixes spelling, picks the dictionary form and asks which meaning you want when there are several.
+- **FSRS review** in both directions (target → base and base → target), grades Again / Hard / Good / Easy.
+- **Answer cards by text or voice.** The AI checks the answer, accepts synonyms and small typos, suggests a grade
+  and, for spoken answers, points out what to work on.
+- **Pronunciation** with neural voices, cached per phrase.
+- **Rimy the mascot**: a friendly tutor who answers questions ("how do I say 'I'm late'?"), runs conversation
+  practice, remembers facts about you and sends review reminders.
+- **Languages.** The bot talks in Russian, Uzbek or English (the base language); you can learn English, Korean,
+  Turkish, German, Italian, Spanish, French, Portuguese, Japanese, Chinese, Russian or Uzbek. Each language you learn
+  has its own deck. Both can be changed any time from the 🌍 menu button, `/base`, `/lang` or the app.
+- **Telegram Mini App** (React): add words by text or voice, review cards, word list with pronunciation,
+  stats, language settings and Premium.
+- **Freemium.** Free plan with daily AI limits (reviewing is always free); **Premium** is a 123 ⭐ Telegram Stars
+  monthly subscription (about 30 000 UZS).
+- **Analytics.** Funnel events (`start → first_word → first_review → app_open → limit_reached → paywall_view →
+  purchase`), referral deep links `t.me/rimy_ai_bot?start=ref_<code>` and an `/admin` report with leads per code.
 
-  Stickers are made from solo arts: a square crop from the top of the art (where the face usually is), 512 px, WebP. Set `REACTION_STYLE=photo` to get full pictures instead. Sent pictures are cached by their Telegram `file_id`.
-- **Your own sticker sets** (`/stickers`).
-  - For every emotion the bot shows candidates as real stickers: "➕" adds one to your set, "👎" removes it for good.
-  - Once a set exists, reactions come only from it.
-  - You can forward **any Telegram sticker** to the bot and bind it to an emotion, so even personas without artwork can have stickers.
-- **Memory and mood.**
-  - The persona remembers your name and facts about you from conversations. `/memory` shows what it remembers and lets you wipe it.
-  - It knows your progress and the words you keep forgetting.
-  - Its mood depends on your streak and on how long you've been away.
-  - The conversation history is stored in the database and survives restarts.
-- **Reminders** (`/remind`, 12:00 and 20:00 by default). The persona invites you to review due cards and, if you've been away for a while, tells you it misses you, with a sticker. It doesn't bother you if you've just been active.
-- **Daily backup.** At 3:00 the persona sends the database file (`.db.gz`) with a sticker and a note. `/backup` sends it right away.
-- **Questions and small talk.** Ask things like "explain the congiuntivo" or "how do I say 'I'm late'?". The bot works out whether you sent a word or a question and answers in the persona's style, with "➕" buttons to add the words it used. `/practice` switches to conversation practice in the target language, with corrections.
-- **Main menu** under the input field, plus `/list`, `/stats` (including your streak) and `/delete`.
+## How it works
 
-**Stack:** Python 3.12, aiogram 3, SQLAlchemy 2 + SQLite, Alembic, openai (for Groq/OpenAI), google-genai, fsrs, edge-tts, Pillow, Docker.
+```
+Telegram ──► aiogram bot ─┐
+                          ├─► AI service (Groq → OpenAI → Gemini fallback chain, Whisper for voice)
+Mini App ──► Caddy (HTTPS) ──► FastAPI (/api) ─┤
+                          ├─► FSRS scheduler, quotas, Premium, analytics
+                          └─► SQLAlchemy ──► SQLite (WAL), Alembic migrations
+```
+
+The bot and the Mini App API run in **one Python process** on one event loop and share one database, so a word
+added by voice in the chat appears in the app immediately. Mini App requests are authenticated with Telegram's
+signed `initData` (HMAC with the bot token): no logins, and nobody can act as another user.
+
+## Tech stack
+
+Python 3.12, aiogram 3, FastAPI + uvicorn, SQLAlchemy 2 (async) + aiosqlite, Alembic, fsrs, Groq / OpenAI / Gemini,
+edge-tts, Pillow · React 18 + TypeScript + Vite · Docker, Caddy, GitHub Actions, GHCR.
+
+## Project structure
+
+```
+bot/
+  __main__.py        entry point: bot + API + scheduler in one event loop
+  handlers/          chat: onboarding, adding words, review, practice, premium, admin
+  api/               Mini App REST API and Telegram initData auth
+  ai/                prompts, providers and the fallback chain
+  billing.py         free-plan quotas, Premium (Stars), analytics events
+  db/                models, repository, session (SQLite WAL)
+  jobs/              reminders and daily backups
+  persona/           the mascot's card, memory and context
+  audio/tts.py       pronunciation
+  menu.py, texts.py  localized menu and texts (ru / uz / en)
+webapp/              Telegram Mini App (React + Vite + TS)
+migrations/          Alembic migrations (applied automatically at startup)
+deploy/              production compose (bot + Caddy), Caddyfile, server setup script
+scripts/deploy.sh    deploy with rollback, called by CI over SSH
+tests/               pytest suite
+```
 
 ## Running locally
 
 ```bash
-python -m venv .venv
-.venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt   # Linux/macOS: .venv/bin/pip
-cp .env.example .env    # then fill it in
-.venv/Scripts/python -m bot
+cp .env.example .env          # fill in BOT_TOKEN, ADMIN_IDS and at least one AI key
+docker compose up --build     # bot + API on http://localhost:8080
 ```
 
-Environment variables:
+Without Docker:
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+(cd webapp && npm install && npm run build)    # the API serves webapp/dist at /
+.venv/bin/python -m bot
+```
+
+Mini App development with hot reload: `cd webapp && npm run dev` (Vite on :5173 proxies `/api` to :8080).
+Telegram only opens Mini Apps over HTTPS, so to try it inside Telegram expose :8080 with an HTTPS tunnel
+and set `WEBAPP_URL` to that address.
+
+## Configuration
 
 | Variable | Required | Description |
 |---|---|---|
 | `BOT_TOKEN` | yes | token from @BotFather |
-| `OWNER_ID` | yes | your Telegram user ID (ask @userinfobot). The bot answers only this user |
-| `GROQ_API_KEY` | at least one AI key | console.groq.com: free and fast, text plus Whisper for voice |
-| `OPENAI_API_KEY` | | platform.openai.com (paid) |
-| `GEMINI_API_KEY` | | aistudio.google.com (free, but often overloaded) |
-| `GROQ_MODELS`, `OPENAI_MODEL`, `GEMINI_MODELS` | no | models to use; in comma-separated lists the next model is tried if the first one fails |
-| `DANBOORU_LOGIN`, `DANBOORU_API_KEY` | no | Danbooru account for art search (My Account → API Key). Without it, or when Danbooru blocks the server's IP (data-center IPs often get `403`), art is searched on Safebooru |
-| `REACTION_STYLE` | no | `sticker` (default) or `photo` |
+| `ADMIN_IDS` | yes | comma-separated Telegram ids: `/admin`, `/backup` and the daily backup |
+| `GROQ_API_KEY` | at least one AI key | Groq: fast LLMs and Whisper speech recognition |
+| `OPENAI_API_KEY` | | OpenAI, used as a fallback |
+| `GEMINI_API_KEY` | | Google Gemini, used as a fallback |
+| `GROQ_MODELS`, `OPENAI_MODEL`, `GEMINI_MODELS` | no | models; in comma-separated lists the next one is tried if the first fails |
+| `WEBAPP_URL` | no | public HTTPS address of the Mini App; empty = no app button |
+| `FREE_WORDS_PER_DAY`, `FREE_VOICE_PER_DAY`, `FREE_CHAT_PER_DAY`, `FREE_CHECKS_PER_DAY` | no | free plan limits (10 / 5 / 15 / 30) |
+| `PREMIUM_PRICE_STARS` | no | Premium price in Telegram Stars per 30 days (123) |
 | `DATABASE_URL` | no | default `sqlite+aiosqlite:///data/bot.db` |
 | `TIMEZONE` | no | default `Asia/Tashkent` |
-| `DEFAULT_TARGET_LANG` | no | default `it` |
 
-AI providers form a chain: **Groq → OpenAI → Gemini**. Only providers with a key take part. If one is down, rate-limited, or returns a broken answer, the bot moves on to the next one right away.
+The AI providers form a chain: **Groq → OpenAI → Gemini**. Only providers with a key take part; if one is down,
+rate-limited or returns a broken answer, the next one answers right away.
 
-Tests: `pytest`.
+## Payments
 
-To create a migration after changing the models:
+Premium is sold with **Telegram Stars** (currency `XTR`), as Telegram requires for digital goods in bots and
+Mini Apps: no payment provider token is needed. The subscription renews every 30 days. Stars go to the bot's
+balance and can be withdrawn through Fragment. Every payment is stored with its Telegram charge id, so a duplicate
+update never grants Premium twice.
+
+## Deployment
+
+Production runs on a small Ubuntu server (an Oracle Cloud Always Free VM is enough) with Docker:
+the bot container plus **Caddy**, which gets and renews a Let's Encrypt certificate by itself.
+
+**One-time server setup**
 
 ```bash
-alembic revision --autogenerate -m "what changed"
+git clone https://github.com/Vuek0/rimy.git ~/rimy && cd ~/rimy
+bash deploy/server-setup.sh                      # swap, Docker, opens ports 80/443 in iptables
+nano .env                                        # same variables as .env.example
+echo "DOMAIN=<your-domain>" > deploy/.env        # e.g. 1-2-3-4.sslip.io for an IP without a domain
+docker compose -p rimy -f deploy/docker-compose.prod.yml up -d --build
 ```
 
-## Deployment (push to main → server)
+Also allow TCP 80 and 443 in the cloud firewall (on Oracle: the subnet's Security List).
 
-A `git push` to `main` runs GitHub Actions:
-1. **Test.** Runs the test suite (pull requests run the tests too).
-2. **Build.** Builds the Docker image and publishes it to GHCR (`ghcr.io/<owner>/<repo>:<commit>`).
-3. **Deploy.** Asks the server over SSH to update to that commit. On the server, `scripts/deploy.sh` pulls the code, downloads the image and restarts the container. If the new version doesn't come up, it rolls back to the previous one.
+**CI/CD (push to `main` → server)**
 
-### One-time setup
+1. **Test**: runs pytest (pull requests run the tests too).
+2. **Build**: builds the image, Mini App included, and pushes it to GHCR (`ghcr.io/vuek0/rimy:<commit>`).
+3. **Deploy**: asks the server over SSH to deploy that commit. `scripts/deploy.sh` checks that the commit is on
+   `origin/main`, pulls the image, restarts the stack and verifies that the bot is running and the API answers
+   over HTTPS. If not, it rolls back to the previous version.
 
-**On the server** (with Docker installed):
+Setup:
+- On the server, add a separate deploy key to `~/.ssh/authorized_keys` **restricted to the deploy script**:
+  `command="/home/ubuntu/rimy/scripts/deploy.sh",restrict ssh-ed25519 AAAA... rimy-github-deploy`
+- On GitHub: Settings → Environments → `production` (deployment branches: `main`) with secrets
+  `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (the deploy key's private part) and `VPS_KNOWN_HOSTS`
+  (output of `ssh-keyscan <server ip>`).
+- After the first build make the `rimy` package public (Packages → Package settings → Change visibility),
+  so the server pulls images without a token.
+
+**Backups**: every day at 03:00 the bot sends the admins a compressed copy of the database (`rimy-YYYY-MM-DD.db.gz`);
+`/backup` sends one right away.
+
+## Admin
+
+`/admin [days]` (admins only) shows users, new users, active Premium, Stars earned, the funnel and leads per
+referral code. Put `t.me/rimy_ai_bot?start=ref_<name>` in a QR code to count the leads each person brings.
+
+## Tests
+
 ```bash
-git clone https://github.com/<owner>/<repo>.git ~/lang-lrn-bot
-nano ~/lang-lrn-bot/.env          # bot keys, as in .env.example
-```
-Add a separate deploy key to `~/.ssh/authorized_keys` **with a restriction**, so it can do nothing but trigger a deploy:
-```
-command="/home/ubuntu/lang-lrn-bot/scripts/deploy.sh",restrict ssh-ed25519 AAAA... github-deploy
+pytest
 ```
 
-**On GitHub:**
-- Go to Settings → Environments → `production` and limit Deployment branches to `main`. Add these secrets there:
-
-  | Secret | Value |
-  |---|---|
-  | `VPS_HOST` | server IP |
-  | `VPS_USER` | user, e.g. `ubuntu` |
-  | `VPS_SSH_KEY` | private part of the deploy key |
-  | `VPS_KNOWN_HOSTS` | output of `ssh-keyscan <IP>` |
-- After the first build, go to Packages → the image → Package settings → **Change visibility → Public**. The server then pulls the image without any token.
-
-### Restoring from a backup
-
-Every day the bot sends the owner a `lang-lrn-bot-YYYY-MM-DD.db.gz` file. To restore it on the server:
-```bash
-gunzip lang-lrn-bot-2026-11-20.db.gz
-cd ~/lang-lrn-bot && docker compose stop bot
-docker run --rm -v lang-lrn-bot_bot-data:/data -v "$PWD":/src alpine \
-  sh -c "cp /src/lang-lrn-bot-2026-11-20.db /data/bot.db && chown -R 1000:1000 /data"
-docker compose start bot
-```
+The suite covers the AI parsing and fallback chain, FSRS, the repository, quotas and payments, the Mini App API
+(initData auth and isolation between users), the localized menu, onboarding, reminders, backups and concurrent
+SQLite writes.
 
 ## Security
 
-- **Bot and AI keys** live only in `.env` on the server. They are not in the repository or in GitHub Secrets, and `.env` is in `.gitignore`.
-- **The bot answers only its owner** (`OWNER_ID`), so strangers can't use up your API limits.
-- **The deploy key** is locked to `scripts/deploy.sh` on the server (`command=…,restrict`): no shell and no port forwarding. The script accepts only `deploy <sha>` and deploys only commits that are on `origin/main`.
-- **Deploy secrets** are in the `production` environment, which only the `main` branch can use. Pull requests, including those from forks, only run the tests and never see the secrets.
-- **Workflow permissions** are minimal (`contents: read`); only the build step can write to GHCR.
-- **Dependabot** proposes weekly updates for dependencies, Actions and the base image.
-- **The container** runs as an unprivileged user.
-
-Found a vulnerability? Please contact the repository owner privately instead of opening a public issue.
+- Keys live only in `.env` on the server; `.env*` files are git-ignored.
+- Mini App API: every request carries Telegram-signed `initData`, checked for signature and age; users can reach
+  only their own decks, cards and words.
+- The deploy key can run only `scripts/deploy.sh`, which deploys only commits from `main`. Deploy secrets live in
+  the `production` environment, available to the `main` branch only; pull requests never see them.
+- Containers run as an unprivileged user; workflow permissions are minimal.
 
 ## License
 

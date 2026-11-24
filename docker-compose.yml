@@ -1,7 +1,7 @@
 services:
   bot:
-    # On the server the CI writes docker-compose.override.yml with the exact image to run.
-    image: ${BOT_IMAGE:-lang-lrn-bot:local}
+    # Local development. Production (bot + Caddy) is deploy/docker-compose.prod.yml.
+    image: ${BOT_IMAGE:-rimy:local}
     build: .
     restart: always
     env_file: .env

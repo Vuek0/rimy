@@ -72,7 +72,7 @@ def check_sqlite_writable(url: str) -> None:
     except OSError as exc:
         raise RuntimeError(
             f"database folder {folder} is not writable ({exc}). In Docker, give the bot user the volume: "
-            "docker run --rm -v lang-lrn-bot_bot-data:/data alpine chown -R 1000:1000 /data"
+            "docker run --rm -v rimy_rimy-data:/data alpine chown -R 1000:1000 /data"
         ) from exc
 
 

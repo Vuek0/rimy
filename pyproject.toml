@@ -1,7 +1,7 @@
 [project]
-name = "lang-lrn-bot"
+name = "rimy"
 version = "0.1.0"
-description = "Telegram bot for learning foreign words with AI checks and spaced repetition"
+description = "Rimy: Telegram bot and Mini App for learning foreign words with AI flashcards and spaced repetition"
 requires-python = ">=3.12"
 
 [tool.pytest.ini_options]

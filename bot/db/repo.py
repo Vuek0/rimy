@@ -68,7 +68,7 @@ class Repo:
     # --- personas ---
 
     async def active_persona(self, user: User) -> Persona:
-        """The persona the bot plays for this user; creates the default one (Roxy) on first use."""
+        """The persona the bot plays for this user; creates the default one (the mascot) on first use."""
         persona = await self.s.scalar(
             select(Persona).where(Persona.user_id == user.id, Persona.is_active.is_(True)).limit(1)
         )
