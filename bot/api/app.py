@@ -26,6 +26,7 @@ from bot.api.auth import AuthError, parse_init_data
 from bot.audio import tts
 from bot.billing import Billing, Quota
 from bot.config import Settings
+from bot.admin_users import user_profile, users_list
 from bot.dashboard import dashboard
 from bot.db.models import Card, Deck, User, Word
 from bot.db.repo import Repo
@@ -203,29 +204,32 @@ def create_app(
             "promo_pending_days": await promo.pending_days(c.repo.s, c.user),
         }
 
-    @app.get("/api/avatar")
-    async def avatar(c: C) -> Response:
-        """The user's Telegram profile photo, fetched by the bot (the bot token never reaches the browser).
+    async def avatar_response(user_id: int) -> Response:
+        """A Telegram profile photo, fetched by the bot (the bot token never reaches the browser).
         404 when there is none or the user's privacy settings hide it: the app shows the initial instead."""
         now = time.monotonic()
-        cached = avatar_cache.get(c.user.id)
+        cached = avatar_cache.get(user_id)
         if cached is None or now - cached[0] > AVATAR_TTL:
             data = b""
             try:
-                photos = await bot.get_user_profile_photos(c.user.id, limit=1)
+                photos = await bot.get_user_profile_photos(user_id, limit=1)
                 if photos.total_count:
                     smallest_good = photos.photos[0][min(1, len(photos.photos[0]) - 1)]  # ~160px is plenty
                     buffer = await bot.download(smallest_good.file_id)
                     data = buffer.read() if buffer else b""
             except Exception:  # noqa: BLE001 - no avatar is not an error worth failing the profile for
-                log.warning("avatar for %s is unavailable", c.user.id, exc_info=True)
+                log.warning("avatar for %s is unavailable", user_id, exc_info=True)
             cached = (now, data)
-            avatar_cache[c.user.id] = cached
+            avatar_cache[user_id] = cached
             while len(avatar_cache) > AVATAR_CACHE_SIZE:
                 avatar_cache.popitem(last=False)
         if not cached[1]:
             raise HTTPException(404, "no avatar")
         return Response(cached[1], media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+    @app.get("/api/avatar")
+    async def avatar(c: C) -> Response:
+        return await avatar_response(c.user.id)
 
     @app.post("/api/promo")
     async def redeem_promo(body: PromoIn, c: C) -> dict[str, Any]:
@@ -248,6 +252,24 @@ def create_app(
         """The team's live dashboard (it shows everyone's numbers)."""
         admin_only(c)
         return await dashboard(c.repo.s, utcnow(), settings.timezone, max(1, min(days, 90)))
+
+    @app.get("/api/admin/users")
+    async def admin_users(c: C, q: str = "", offset: int = 0) -> dict[str, Any]:
+        admin_only(c)
+        return await users_list(c.repo.s, utcnow(), q[:64], offset)
+
+    @app.get("/api/admin/users/{user_id}")
+    async def admin_user(user_id: int, c: C) -> dict[str, Any]:
+        admin_only(c)
+        profile = await user_profile(c.repo.s, user_id, utcnow())
+        if profile is None:
+            raise HTTPException(404, "no such user")
+        return profile
+
+    @app.get("/api/admin/users/{user_id}/avatar")
+    async def admin_user_avatar(user_id: int, c: C) -> Response:
+        admin_only(c)
+        return await avatar_response(user_id)
 
     @app.get("/api/admin/promos")
     async def list_promos(c: C) -> dict[str, Any]:

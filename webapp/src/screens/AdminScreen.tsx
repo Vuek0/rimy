@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity, BookOpen, Copy, Crown, Gift, Layers, Plus, Power, Receipt, Star, UserPlus, Users, type LucideIcon,
+  Activity, BarChart3, BookOpen, Copy, Crown, Gift, Layers, Plus, Power, Receipt, Star, UserPlus, Users, type LucideIcon,
 } from "lucide-react";
 import { api, type Dashboard, type Point, type Promo } from "../api";
 import { haptic, tg } from "../telegram";
 import { FullLoader } from "../ui";
+import { AdminPeople } from "./AdminPeople";
 
 const REFRESH_MS = 15_000;
 const RANGES = [7, 14, 30];
@@ -165,6 +166,26 @@ function PromoAdmin({ onError }: { onError: (e: unknown) => void }) {
 
 /** The team's live dashboard (admins only): refreshes itself every 15 s, made to stay open on the stand's screen. */
 export function AdminScreen({ onError }: { onError: (e: unknown) => void }) {
+  const [view, setView] = useState<"numbers" | "people">("numbers");
+  const switcher = (
+    <div className="chips">
+      <button className={view === "numbers" ? "chip active" : "chip"} onClick={() => setView("numbers")}>
+        <BarChart3 size={16} /> Цифры
+      </button>
+      <button className={view === "people" ? "chip active" : "chip"} onClick={() => setView("people")}>
+        <Users size={16} /> Люди
+      </button>
+    </div>
+  );
+  return (
+    <div className="stack">
+      {switcher}
+      {view === "numbers" ? <Numbers onError={onError} /> : <AdminPeople onError={onError} />}
+    </div>
+  );
+}
+
+function Numbers({ onError }: { onError: (e: unknown) => void }) {
   const [days, setDays] = useState(14);
   const [data, setData] = useState<Dashboard | null>(null);
 

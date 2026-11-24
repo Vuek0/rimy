@@ -11,6 +11,7 @@ interface TgWebApp {
   expand(): void;
   openInvoice(url: string, cb?: (status: "paid" | "cancelled" | "failed" | "pending") => void): void;
   showAlert(message: string): void;
+  openTelegramLink?(url: string): void;
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
   setBottomBarColor?(color: string): void;

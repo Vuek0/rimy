@@ -172,6 +172,28 @@ async def test_admin_dashboard(client):
     assert {row["kind"]: row["count"] for row in data["ai_today"]}["word"] == 1
 
 
+async def test_admin_people(client):
+    await client.get("/api/me", headers=auth(30, start_param="ref_stand"))
+    await client.post("/api/words", json={"lemma": "finestra", "translations": ["окно"]}, headers=auth(30))
+    await client.get("/api/me", headers=auth(31))
+    assert (await client.get("/api/admin/users", headers=auth(30))).status_code == 403
+    assert (await client.get("/api/admin/users/31", headers=auth(30))).status_code == 403
+
+    admin = auth(1)
+    people = (await client.get("/api/admin/users", headers=admin)).json()
+    assert people["total"] == 3 and {u["id"]: u["words"] for u in people["users"]}[30] == 1
+    found = (await client.get("/api/admin/users?q=stand", headers=admin)).json()  # search by ref
+    assert [u["id"] for u in found["users"]] == [30]
+    assert [u["id"] for u in (await client.get("/api/admin/users?q=31", headers=admin)).json()["users"]] == [31]
+
+    profile = (await client.get("/api/admin/users/30", headers=admin)).json()
+    assert profile["ref"] == "stand" and profile["stats"]["words"] == 1 and profile["stats"]["due"] == 2
+    assert profile["recent_words"][0]["translation"] == "окно" and profile["decks"][0]["words"] == 1
+    assert {s["key"]: s["at"] for s in profile["funnel"]}["first_word"] is not None
+    assert (await client.get("/api/admin/users/999", headers=admin)).status_code == 404
+    assert (await client.get("/api/admin/users/50/avatar", headers=admin)).status_code == 200
+
+
 async def test_avatar_from_telegram(client):
     res = await client.get("/api/avatar", headers=auth(50))
     assert res.status_code == 200 and res.headers["content-type"] == "image/jpeg" and res.content.startswith(b"\xff\xd8")

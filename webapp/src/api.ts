@@ -35,6 +35,23 @@ export interface Dashboard {
   ai_today: { kind: string; label: string; count: number }[];
   refs: { ref: string; users: number }[];
 }
+export interface Person {
+  id: number; first_name: string; username: string; native_lang: string; premium: boolean;
+  words: number; ref: string; created_at: string; last_active_at: string | null;
+}
+interface LangTag { code: string; name: string; flag: string }
+export interface PersonProfile {
+  id: number; first_name: string; username: string; ref: string;
+  native_lang: LangTag; decks: (LangTag & { words: number })[];
+  premium: boolean; premium_until: string | null; onboarded: boolean; reminders: boolean;
+  practice_mode: boolean; timezone: string; created_at: string; last_active_at: string | null;
+  stats: { words: number; reviews: number; last_review_at: string | null; due: number };
+  ai_total: Record<string, number>;
+  payments: { stars: number; at: string }[];
+  promos: { code: string; days: number; at: string; applied: boolean }[];
+  funnel: { key: string; label: string; at: string | null }[];
+  recent_words: { display: string; translation: string; at: string }[];
+}
 export interface Sense { translation: string; example: string; example_translation: string; note: string }
 export interface Word {
   id: number; lemma: string; display: string; reading: string; pos: string;
@@ -106,11 +123,16 @@ export const api = {
   createPromo: (days: number, maxUses: number, code = "") =>
     post<{ code: string; id: number }>("/api/admin/promos", { days, max_uses: maxUses, code }),
   setPromoActive: (id: number, active: boolean) => post(`/api/admin/promos/${id}`, { active }),
+  people: (q: string, offset = 0) =>
+    request<{ total: number; users: Person[] }>(`/api/admin/users?q=${encodeURIComponent(q)}&offset=${offset}`),
+  person: (id: number) => request<PersonProfile>(`/api/admin/users/${id}`),
 };
 
-/** The user's Telegram profile photo as an object URL, or null if there is none / it's hidden. */
-export async function avatarUrl(): Promise<string | null> {
-  const res = await fetch("/api/avatar", { headers: { Authorization: `tma ${initData()}` } });
+/** A Telegram profile photo as an object URL, or null if there is none / it's hidden.
+ *  No id: the current user's own; with an id: anyone's (admins only). */
+export async function avatarUrl(userId?: number): Promise<string | null> {
+  const path = userId === undefined ? "/api/avatar" : `/api/admin/users/${userId}/avatar`;
+  const res = await fetch(path, { headers: { Authorization: `tma ${initData()}` } });
   return res.ok ? URL.createObjectURL(await res.blob()) : null;
 }
 
