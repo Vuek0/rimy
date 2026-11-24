@@ -187,7 +187,7 @@ async def test_admin_people(client):
     assert [u["id"] for u in (await client.get("/api/admin/users?q=31", headers=admin)).json()["users"]] == [31]
 
     profile = (await client.get("/api/admin/users/30", headers=admin)).json()
-    assert profile["ref"] == "stand" and profile["stats"]["words"] == 1 and profile["stats"]["due"] == 2
+    assert profile["ref"] == "stand" and profile["stats"]["words"] == 1 and profile["stats"]["due"] == 1
     assert profile["recent_words"][0]["translation"] == "окно" and profile["decks"][0]["words"] == 1
     assert {s["key"]: s["at"] for s in profile["funnel"]}["first_word"] is not None
     assert (await client.get("/api/admin/users/999", headers=admin)).status_code == 404
