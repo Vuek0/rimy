@@ -108,6 +108,12 @@ export const api = {
   setPromoActive: (id: number, active: boolean) => post(`/api/admin/promos/${id}`, { active }),
 };
 
+/** The user's Telegram profile photo as an object URL, or null if there is none / it's hidden. */
+export async function avatarUrl(): Promise<string | null> {
+  const res = await fetch("/api/avatar", { headers: { Authorization: `tma ${initData()}` } });
+  return res.ok ? URL.createObjectURL(await res.blob()) : null;
+}
+
 /** Play a word's (or its example's) pronunciation. */
 export async function speak(wordId: number, part: "word" | "example" = "word"): Promise<void> {
   const res = await fetch(`/api/tts/${wordId}?part=${part}`, { headers: { Authorization: `tma ${initData()}` } });

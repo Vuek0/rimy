@@ -1,10 +1,12 @@
 """Free-plan quotas, Premium, and the Mini App API (initData auth, words, review, isolation between users)."""
 
 import hashlib
+import io
 import hmac
 import json
 import time
 from datetime import timedelta
+from types import SimpleNamespace
 from urllib.parse import urlencode
 
 import httpx
@@ -58,6 +60,15 @@ class FakeBot:
     async def create_invoice_link(self, **kwargs):
         assert kwargs["currency"] == "XTR" and kwargs["subscription_period"] == 30 * 24 * 3600
         return "https://t.me/$invoice"
+
+    async def get_user_profile_photos(self, user_id, limit=1):
+        # user 50 has a photo (three sizes), everyone else hides it or has none
+        sizes = [SimpleNamespace(file_id=f"photo-{n}") for n in ("s", "m", "x")] if user_id == 50 else []
+        return SimpleNamespace(total_count=1 if sizes else 0, photos=[sizes] if sizes else [])
+
+    async def download(self, file_id):
+        assert file_id == "photo-m"  # the ~160px size, not the full one
+        return io.BytesIO(b"\xff\xd8jpeg")
 
 
 # --- quotas & premium ---
@@ -158,6 +169,13 @@ async def test_admin_dashboard(client):
     assert funnel["first_word"] == 1 and funnel["first_review"] == 1 and funnel["app_open"] == 1
     assert data["refs"] == [{"ref": "stand", "users": 1}]
     assert {row["kind"]: row["count"] for row in data["ai_today"]}["word"] == 1
+
+
+async def test_avatar_from_telegram(client):
+    res = await client.get("/api/avatar", headers=auth(50))
+    assert res.status_code == 200 and res.headers["content-type"] == "image/jpeg" and res.content.startswith(b"\xff\xd8")
+    assert (await client.get("/api/avatar", headers=auth(51))).status_code == 404  # no photo: the app shows the initial
+    assert (await client.get("/api/avatar")).status_code == 401
 
 
 async def test_api_requires_telegram_auth(client):

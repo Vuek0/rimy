@@ -1,5 +1,6 @@
 import { BookOpen, CalendarCheck, Crown, Flame, Gift, Globe2, Languages, Layers } from "lucide-react";
-import { api, type Me } from "../api";
+import { useEffect, useState } from "react";
+import { api, avatarUrl, type Me } from "../api";
 import { haptic } from "../telegram";
 import { PromoForm } from "../ui";
 
@@ -10,6 +11,13 @@ const QUOTA_NAMES: Record<string, string> = {
 };
 
 export function ProfileScreen({ me, onError, onChange, onPremium }: Props) {
+  const [photo, setPhoto] = useState<string | null>(null);
+  useEffect(() => {
+    let url: string | null = null;
+    avatarUrl().then((u) => { url = u; setPhoto(u); }).catch(() => undefined);  // no photo: keep the initial
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, []);
+
   const change = (job: () => Promise<unknown>) => async () => {
     haptic.tap();
     try {
@@ -24,7 +32,9 @@ export function ProfileScreen({ me, onError, onChange, onPremium }: Props) {
   return (
     <div className="stack stagger">
       <div className="profile-head">
-        <div className="avatar">{(me.first_name || "R").slice(0, 1).toUpperCase()}</div>
+        <div className="avatar">
+          {photo ? <img src={photo} alt="" /> : (me.first_name || "R").slice(0, 1).toUpperCase()}
+        </div>
         <div>
           <h1>{me.first_name || "Привет!"}</h1>
           <p className="muted">{me.premium ? `Premium до ${until}` : "Бесплатный тариф"}</p>

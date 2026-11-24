@@ -5,6 +5,7 @@ The API reuses the bot's AI service, repository, quotas and SRS, so the chat and
 """
 
 import logging
+import time
 from collections import OrderedDict
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -40,6 +41,8 @@ log = logging.getLogger(__name__)
 MAX_TEXT = 120
 MAX_AUDIO_BYTES = 2_000_000  # ~30 s of speech
 TTS_CACHE_SIZE = 300
+AVATAR_TTL = 3600  # seconds: a changed Telegram photo shows up within an hour
+AVATAR_CACHE_SIZE = 500
 
 
 # --- request / response models ---
@@ -144,6 +147,7 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="Rimy API", docs_url="/api/docs", openapi_url="/api/openapi.json")
     tts_cache: OrderedDict[str, bytes] = OrderedDict()
+    avatar_cache: OrderedDict[int, tuple[float, bytes]] = OrderedDict()  # user id → (fetched at, jpeg or b"")
 
     async def ctx(authorization: Annotated[str, Header()] = "") -> AsyncIterator[Ctx]:
         scheme, _, init_data = authorization.partition(" ")
@@ -194,6 +198,30 @@ def create_app(
             "is_admin": settings.is_admin(c.user.id),
             "promo_pending_days": await promo.pending_days(c.repo.s, c.user),
         }
+
+    @app.get("/api/avatar")
+    async def avatar(c: C) -> Response:
+        """The user's Telegram profile photo, fetched by the bot (the bot token never reaches the browser).
+        404 when there is none or the user's privacy settings hide it: the app shows the initial instead."""
+        now = time.monotonic()
+        cached = avatar_cache.get(c.user.id)
+        if cached is None or now - cached[0] > AVATAR_TTL:
+            data = b""
+            try:
+                photos = await bot.get_user_profile_photos(c.user.id, limit=1)
+                if photos.total_count:
+                    smallest_good = photos.photos[0][min(1, len(photos.photos[0]) - 1)]  # ~160px is plenty
+                    buffer = await bot.download(smallest_good.file_id)
+                    data = buffer.read() if buffer else b""
+            except Exception:  # noqa: BLE001 - no avatar is not an error worth failing the profile for
+                log.warning("avatar for %s is unavailable", c.user.id, exc_info=True)
+            cached = (now, data)
+            avatar_cache[c.user.id] = cached
+            while len(avatar_cache) > AVATAR_CACHE_SIZE:
+                avatar_cache.popitem(last=False)
+        if not cached[1]:
+            raise HTTPException(404, "no avatar")
+        return Response(cached[1], media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
 
     @app.post("/api/promo")
     async def redeem_promo(body: PromoIn, c: C) -> dict[str, Any]:
