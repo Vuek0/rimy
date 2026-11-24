@@ -83,15 +83,24 @@ image_name() {
   echo "ghcr.io/${path,,}"
 }
 
-# 20 seconds after start the bot must be running (not restarting) and its API must answer through Caddy
+# Within 2 minutes the bot must be running (not restarting) and its API must answer through Caddy.
+# Startup (migrations, AI chain, polling) takes ~40 s on the 1 GB VM, so poll instead of one fixed wait.
 healthy() {
-  sleep 20
-  local state
-  state="$(compose ps --format '{{.State}}' bot 2>/dev/null || true)"
-  [[ "$state" == "running" ]] || return 1
-  local domain
+  local domain state i
   domain="$(sed -n 's/^DOMAIN=//p' deploy/.env 2>/dev/null || true)"
-  [[ -z "$domain" ]] || curl -fsS -m 10 "https://$domain/api/health" >/dev/null
+  for i in $(seq 1 24); do
+    sleep 5
+    state="$(compose ps --format '{{.State}}' bot 2>/dev/null || true)"
+    if [[ "$state" == "running" ]]; then
+      if [[ -z "$domain" ]] || curl -fsS -m 5 "https://$domain/api/health" >/dev/null 2>&1; then
+        echo "healthy after $((i * 5)) s"
+        return 0
+      fi
+    elif [[ "$state" != "created" && "$state" != "restarting" && $i -gt 6 ]]; then
+      return 1  # exited / dead: no point waiting
+    fi
+  done
+  return 1
 }
 
 main "$@"
