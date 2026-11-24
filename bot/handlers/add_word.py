@@ -247,7 +247,7 @@ async def _consume(status: Message, billing: Billing | None, user: User, kind: s
         return True
     quota = await billing.try_consume(user, kind, utcnow())
     if quota.refused:
-        await status.edit_text(prefix + billing.limit_message(quota))
+        await status.edit_text(prefix + billing.limit_message(quota, user.native_lang))
         return False
     return True
 

@@ -5,7 +5,7 @@ type Notice = "success" | "error" | "warning";
 
 interface TgWebApp {
   initData: string;
-  initDataUnsafe: { user?: { first_name?: string }; start_param?: string };
+  initDataUnsafe: { user?: { first_name?: string; language_code?: string }; start_param?: string };
   colorScheme: "light" | "dark";
   ready(): void;
   expand(): void;

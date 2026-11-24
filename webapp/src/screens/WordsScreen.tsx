@@ -3,6 +3,7 @@ import { BookOpen, Search, Trash2, Volume2 } from "lucide-react";
 import { api, speak, type Word } from "../api";
 import { haptic } from "../telegram";
 import { FullLoader } from "../ui";
+import { t } from "../i18n";
 
 interface Props { onError: (e: unknown) => void; onChange: () => void }
 
@@ -22,7 +23,7 @@ export function WordsScreen({ onError, onChange }: Props) {
   }, [words, query]);
 
   const remove = async (word: Word) => {
-    if (!confirm(`Удалить «${word.display}»?`)) return;
+    if (!confirm(t("words.confirmDelete", { word: word.display }))) return;
     try {
       await api.deleteWord(word.id);
       haptic.tap();
@@ -34,22 +35,22 @@ export function WordsScreen({ onError, onChange }: Props) {
     }
   };
 
-  if (!words) return <FullLoader text="Загружаю слова…" />;
+  if (!words) return <FullLoader text={t("words.loading")} />;
 
   return (
     <div className="stack">
       <div className="spread enter">
-        <h1>Мои слова</h1>
+        <h1>{t("words.title")}</h1>
         <span className="pill">{total}</span>
       </div>
       <div className="search enter">
         <Search size={18} />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Поиск по словам и переводам" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("words.search")} />
       </div>
       {shown.length === 0 && (
         <div className="center" style={{ minHeight: "40vh" }}>
           <div className="celebrate"><BookOpen size={40} /></div>
-          <p className="muted">{words.length ? "Ничего не нашлось" : "Пока пусто. Добавь первое слово голосом!"}</p>
+          <p className="muted">{words.length ? t("words.none") : t("words.empty")}</p>
         </div>
       )}
       <div className="stack-sm stagger">
@@ -60,8 +61,8 @@ export function WordsScreen({ onError, onChange }: Props) {
               <div className="muted">{w.translations.join("; ")}</div>
             </div>
             <div className="row">
-              <button className="icon" onClick={() => speak(w.id).catch(onError)} aria-label="Озвучить"><Volume2 size={20} /></button>
-              <button className="icon" onClick={() => remove(w)} aria-label="Удалить"><Trash2 size={19} /></button>
+              <button className="icon" onClick={() => speak(w.id).catch(onError)} aria-label={t("speak")}><Volume2 size={20} /></button>
+              <button className="icon" onClick={() => remove(w)} aria-label={t("delete")}><Trash2 size={19} /></button>
             </div>
           </div>
         ))}

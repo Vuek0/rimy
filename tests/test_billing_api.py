@@ -134,6 +134,7 @@ async def test_base_and_target_language(client):
     assert (await client.post("/api/base", json={"code": "uz"}, headers=auth(20))).status_code == 200
     me = (await client.get("/api/me", headers=auth(20))).json()
     assert me["native_lang"] == "uz" and "uz" not in {l["code"] for l in me["langs"]}
+    assert {l["code"]: l["name"] for l in me["langs"]}["en"] == "ingliz" and me["mascot"] == "Rimi"  # Uzbek UI
     assert (await client.post("/api/lang", json={"code": "uz"}, headers=auth(20))).status_code == 400  # not the base
     await client.post("/api/lang", json={"code": "ko"}, headers=auth(20))
     await client.post("/api/base", json={"code": "en"}, headers=auth(20))
@@ -195,6 +196,7 @@ async def test_add_review_and_limits(client):
     nxt = (await client.get("/api/review/next", headers=auth(10))).json()
     card = nxt["card"]
     assert card["prompt"] == "la finestra" and card["word"]["id"] == word["id"]
+    assert card["question"] == "Как переводится?" and card["intervals"]["1"].endswith("мин")
     check = (await client.post(f"/api/review/{card['id']}/answer", json={"text": "окно"}, headers=auth(10))).json()
     assert check["verdict"] == "correct" and check["rating"] == 3
     assert (await client.post(f"/api/review/{card['id']}/rate", json={"rating": 3}, headers=auth(10))).status_code == 200

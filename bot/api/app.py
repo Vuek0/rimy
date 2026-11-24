@@ -31,8 +31,8 @@ from bot.db.models import Card, Deck, User, Word
 from bot.db.repo import Repo
 from bot.handlers.premium import premium_invoice_link
 from bot.handlers.review import expected_answer
-from bot.langs import BASE_LANGS, LANGS, get_lang, learnable
-from bot.persona.card import PersonaCard
+from bot.langs import BASE_LANGS, LANGS, card_question, learnable
+from bot.persona.card import MASCOT_NAME, PersonaCard
 from bot.persona.context import snapshot
 from bot.utils import format_interval, utcnow
 
@@ -123,23 +123,26 @@ def card_json(card: Card, deck: Deck, user: User) -> dict[str, Any]:
     intervals = srs.preview(card.fsrs, now)
     if card.direction == "fwd":
         prompt, prompt_lang = word.display, deck.target_lang
-        question = "Как переводится?"
     else:
         prompt, prompt_lang = "; ".join(word.translations), user.native_lang
-        question = f"Как будет {get_lang(deck.target_lang).adverb_ru}?"
     return {
         "id": card.id,
         "direction": card.direction,
         "prompt": prompt,
         "prompt_lang": prompt_lang,
-        "question": question,
+        "question": card_question(card.direction, deck.target_lang, user.native_lang),
         "word": word_json(word),
-        "intervals": {str(r): format_interval(intervals[r]) for r in (1, 2, 3, 4)},
+        "intervals": {str(r): format_interval(intervals[r], user.native_lang) for r in (1, 2, 3, 4)},
     }
 
 
-def quota_error(billing: Billing, quota: Quota) -> HTTPException:
-    return HTTPException(status_code=402, detail={"code": "limit", "kind": quota.kind, "message": billing.limit_message(quota)})
+NOT_HEARD = {"ru": "Не расслышал, попробуй ещё раз", "uz": "Eshitmadim, yana bir bor urinib ko'r", "en": "Didn't catch that, try again"}
+
+
+def quota_error(billing: Billing, quota: Quota, lang: str) -> HTTPException:
+    return HTTPException(
+        status_code=402, detail={"code": "limit", "kind": quota.kind, "message": billing.limit_message(quota, lang)}
+    )
 
 
 def create_app(
@@ -185,7 +188,7 @@ def create_app(
             "native_lang": c.user.native_lang,
             "lang": c.deck.target_lang,
             "langs": [
-                {"code": l.code, "name": l.english if c.user.native_lang == "en" else l.name_ru, "flag": l.flag}
+                {"code": l.code, "name": l.name(c.user.native_lang), "flag": l.flag}
                 for l in learnable(c.user.native_lang)
             ],
             "base_langs": [{"code": code, "name": label} for code, label in BASE_LANGS.items()],
@@ -194,7 +197,8 @@ def create_app(
             "price_stars": settings.premium_price_stars,
             "quotas": {q.kind: q.to_dict() for q in await c.billing.quotas(c.user, now)},
             "stats": {"words": snap.words, "due": snap.due, "reviewed_today": snap.reviewed_today, "streak": snap.streak},
-            "mascot": c.persona.name,
+            # the mascot is «Рими» in Cyrillic; Uzbek (Latin script) and English show "Rimi"
+            "mascot": c.persona.name if c.user.native_lang == "ru" or c.persona.name != MASCOT_NAME else "Rimi",
             "is_admin": settings.is_admin(c.user.id),
             "promo_pending_days": await promo.pending_days(c.repo.s, c.user),
         }
@@ -229,7 +233,7 @@ def create_app(
         return {
             "status": result.status,
             "ok": result.status in ("applied", "pending", "already"),
-            "message": promo.message(result),
+            "message": promo.message(result, c.user.native_lang),
             "days": result.days,
         }
 
@@ -302,7 +306,7 @@ def create_app(
         if count:
             quota = await c.billing.try_consume(c.user, "word", utcnow())
             if quota.refused:
-                raise quota_error(c.billing, quota)
+                raise quota_error(c.billing, quota, c.user.native_lang)
         try:
             analysis = await ai.analyze_text(text, c.deck.target_lang, c.user.native_lang)
         except AIError as exc:
@@ -332,7 +336,7 @@ def create_app(
             raise HTTPException(413, "audio is empty or longer than ~30 seconds")
         quota = await c.billing.try_consume(c.user, "voice", utcnow())
         if quota.refused:
-            raise quota_error(c.billing, quota)
+            raise quota_error(c.billing, quota, c.user.native_lang)
         try:
             heard = await ai.transcribe(data, audio.content_type or "audio/webm", c.deck.target_lang, c.user.native_lang)
         except AIError as exc:
@@ -340,7 +344,7 @@ def create_app(
             raise HTTPException(503, "speech recognition is busy, try again") from exc
         heard = heard.rstrip("?").strip()[:MAX_TEXT]
         if not heard:
-            raise HTTPException(422, "Не расслышал, попробуй ещё раз")
+            raise HTTPException(422, NOT_HEARD.get(c.user.native_lang, NOT_HEARD["ru"]))
         return {**(await analyze(c, heard, count=False)), "heard": heard}  # after the spread: analysis has heard=""
 
     @app.post("/api/words")
@@ -381,13 +385,13 @@ def create_app(
         due = await c.repo.count_due(c.deck.id, now)
         if card is None:
             next_at = await c.repo.next_due_at(c.deck.id)
-            return {"card": None, "due": 0, "next_in": format_interval(next_at - now) if next_at else None}
+            return {"card": None, "due": 0, "next_in": format_interval(next_at - now, c.user.native_lang) if next_at else None}
         return {"card": card_json(card, c.deck, c.user), "due": due}
 
     async def check(c: Ctx, card: Card, answer: str, voice: bool) -> dict[str, Any]:
         quota = await c.billing.try_consume(c.user, "check", utcnow())
         if quota.refused:
-            return {"verdict": "unknown", "rating": None, "comment": c.billing.limit_message(quota), "answer": answer}
+            return {"verdict": "unknown", "rating": None, "comment": c.billing.limit_message(quota, c.user.native_lang), "answer": answer}
         question, expected, lang = expected_answer(card, c.deck, c.user)
         try:
             result = await ai.check_answer(
@@ -414,7 +418,7 @@ def create_app(
         except AIError as exc:
             raise HTTPException(503, "speech recognition is busy, try again") from exc
         if not heard:
-            raise HTTPException(422, "Не расслышал, попробуй ещё раз")
+            raise HTTPException(422, NOT_HEARD.get(c.user.native_lang, NOT_HEARD["ru"]))
         return await check(c, card, heard, True)
 
     @app.post("/api/review/{card_id}/rate")
@@ -424,7 +428,7 @@ def create_app(
         new_state, due = srs.review(card.fsrs, body.rating, now)
         await c.repo.record_review(card, body.rating, new_state, due, now)
         await c.billing.track_once(c.user.id, "first_review", now, source="app")
-        return {"next_in": format_interval(due - now)}
+        return {"next_in": format_interval(due - now, c.user.native_lang)}
 
     # --- pronunciation ---
 

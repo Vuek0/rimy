@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Gift, Loader2 } from "lucide-react";
 import { api } from "./api";
 import { haptic } from "./telegram";
+import { t } from "./i18n";
 
 /** "Rimy is thinking" with three bouncing dots. */
 export function Thinking({ text }: { text: string }) {
@@ -54,8 +55,8 @@ export function PromoForm({ onDone, compact = false }: { onDone: () => void; com
         <div className="row" style={{ gap: 10 }}>
           <div className="stat-icon" style={{ margin: 0 }}><Gift size={18} /></div>
           <div>
-            <h3>Промокод</h3>
-            <p className="hint">Код от команды Rimy добавит дни к Premium</p>
+            <h3>{t("promo.title")}</h3>
+            <p className="hint">{t("promo.hint")}</p>
           </div>
         </div>
       )}
@@ -71,7 +72,7 @@ export function PromoForm({ onDone, compact = false }: { onDone: () => void; com
           autoCapitalize="characters"
         />
         <button className="primary" onClick={submit} disabled={busy || !code.trim()}>
-          {busy ? <Loader2 size={18} className="spin" /> : "Применить"}
+          {busy ? <Loader2 size={18} className="spin" /> : t("promo.apply")}
         </button>
       </div>
       {result && (

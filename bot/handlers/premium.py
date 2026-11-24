@@ -100,4 +100,4 @@ async def cmd_promo(message: Message, command: CommandObject, user: User, billin
         )
         return
     result = await promo.redeem(billing.s, user, code, utcnow())
-    await message.answer(esc(promo.message(result)))
+    await message.answer(esc(promo.message(result, user.native_lang)))

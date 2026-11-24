@@ -25,10 +25,27 @@ KINDS = ("word", "voice", "chat", "check")
 PREMIUM_PAYLOAD = "premium_30d"
 
 LIMIT_TEXT = {
-    "word": "Сегодня бесплатные AI-слова закончились ({limit} в день).",
-    "voice": "Сегодня бесплатные голосовые закончились ({limit} в день).",
-    "chat": "Сегодня бесплатные сообщения маскоту закончились ({limit} в день).",
-    "check": "Сегодня бесплатные AI-проверки ответов закончились ({limit} в день).",
+    "ru": {
+        "word": "Сегодня бесплатные AI-слова закончились ({limit} в день).",
+        "voice": "Сегодня бесплатные голосовые закончились ({limit} в день).",
+        "chat": "Сегодня бесплатные сообщения маскоту закончились ({limit} в день).",
+        "check": "Сегодня бесплатные AI-проверки ответов закончились ({limit} в день).",
+        "tail": "\n\nПовторение карточек остаётся бесплатным. Premium снимает все лимиты - /premium ⭐",
+    },
+    "uz": {
+        "word": "Bugungi bepul AI so'zlar tugadi (kuniga {limit} ta).",
+        "voice": "Bugungi bepul ovozli xabarlar tugadi (kuniga {limit} ta).",
+        "chat": "Bugungi bepul Rimi bilan suhbat tugadi (kuniga {limit} ta).",
+        "check": "Bugungi bepul AI javob tekshiruvlari tugadi (kuniga {limit} ta).",
+        "tail": "\n\nKartalarni takrorlash bepul qoladi. Premium barcha cheklovlarni olib tashlaydi - /premium ⭐",
+    },
+    "en": {
+        "word": "You've used today's free AI words ({limit} a day).",
+        "voice": "You've used today's free voice words ({limit} a day).",
+        "chat": "You've used today's free chat with Rimi ({limit} a day).",
+        "check": "You've used today's free AI answer checks ({limit} a day).",
+        "tail": "\n\nReviewing cards stays free. Premium removes every limit - /premium ⭐",
+    },
 }
 
 
@@ -93,11 +110,9 @@ class Billing:
         await self.s.flush()
         return Quota(kind, quota.used + 1, quota.limit)
 
-    def limit_message(self, quota: Quota) -> str:
-        return (
-            LIMIT_TEXT[quota.kind].format(limit=quota.limit)
-            + "\n\nПовторение карточек остаётся бесплатным. Premium снимает все лимиты - /premium ⭐"
-        )
+    def limit_message(self, quota: Quota, lang: str = "ru") -> str:
+        texts = LIMIT_TEXT.get(lang, LIMIT_TEXT["ru"])
+        return texts[quota.kind].format(limit=quota.limit) + texts["tail"]
 
     # --- premium ---
 

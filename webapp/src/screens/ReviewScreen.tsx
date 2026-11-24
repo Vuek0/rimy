@@ -7,19 +7,20 @@ import { api, speak, type Card, type Check as CheckResult } from "../api";
 import { haptic } from "../telegram";
 import { useRecorder } from "../useRecorder";
 import { FullLoader, Thinking } from "../ui";
+import { t } from "../i18n";
 
 interface Props { onError: (e: unknown) => void; onChange: () => void }
 
-const RATINGS: { value: number; label: string; icon: LucideIcon; cls: string }[] = [
-  { value: 1, label: "Снова", icon: RotateCcw, cls: "again" },
-  { value: 2, label: "Трудно", icon: Frown, cls: "hard" },
-  { value: 3, label: "Хорошо", icon: ThumbsUp, cls: "good" },
-  { value: 4, label: "Легко", icon: Zap, cls: "easy" },
+const RATINGS: { value: number; icon: LucideIcon; cls: "again" | "hard" | "good" | "easy" }[] = [
+  { value: 1, icon: RotateCcw, cls: "again" },
+  { value: 2, icon: Frown, cls: "hard" },
+  { value: 3, icon: ThumbsUp, cls: "good" },
+  { value: 4, icon: Zap, cls: "easy" },
 ];
-const VERDICT: Record<string, { text: string; icon: LucideIcon }> = {
-  correct: { text: "Верно!", icon: CheckCircle2 },
-  almost: { text: "Почти!", icon: AlertCircle },
-  wrong: { text: "Не совсем", icon: XCircle },
+const VERDICT: Record<string, { key: "rev.correct" | "rev.almost" | "rev.wrong"; icon: LucideIcon }> = {
+  correct: { key: "rev.correct", icon: CheckCircle2 },
+  almost: { key: "rev.almost", icon: AlertCircle },
+  wrong: { key: "rev.wrong", icon: XCircle },
 };
 
 /** FSRS review: front → answer by text / voice or just reveal → grade. */
@@ -89,14 +90,14 @@ export function ReviewScreen({ onError, onChange }: Props) {
     }
   };
 
-  if (loading && !card) return <FullLoader text="Достаю карточки…" />;
+  if (loading && !card) return <FullLoader text={t("rev.loading")} />;
 
   if (!card) {
     return (
       <div className="center stagger">
         <div className="celebrate"><PartyPopper size={44} /></div>
-        <h2>{done ? `Повторено: ${done}. Ты супер!` : "На сейчас всё повторено"}</h2>
-        {nextIn ? <p className="muted">Следующая карточка через {nextIn}</p> : <p className="muted">Добавь первые слова во вкладке «Добавить»</p>}
+        <h2>{done ? t("rev.doneCount", { n: done }) : t("rev.allDone")}</h2>
+        {nextIn ? <p className="muted">{t("rev.nextIn", { t: nextIn })}</p> : <p className="muted">{t("rev.addFirst")}</p>}
       </div>
     );
   }
@@ -105,7 +106,7 @@ export function ReviewScreen({ onError, onChange }: Props) {
   const total = due + done;
   const verdict = check ? VERDICT[check.verdict] : undefined;
   const sayButton = (part: "word" | "example" = "word") => (
-    <button className="icon" onClick={() => speak(w.id, part).catch(onError)} aria-label="Озвучить">
+    <button className="icon" onClick={() => speak(w.id, part).catch(onError)} aria-label={t("speak")}>
       <Volume2 size={part === "word" ? 22 : 18} />
     </button>
   );
@@ -114,8 +115,8 @@ export function ReviewScreen({ onError, onChange }: Props) {
     <div className="stack">
       <div className="stack-sm">
         <div className="spread">
-          <span className="eyebrow">Повторение</span>
-          <span className="hint">осталось {due}</span>
+          <span className="eyebrow">{t("rev.eyebrow")}</span>
+          <span className="hint">{t("rev.left", { n: due })}</span>
         </div>
         <div className="progress"><div style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
       </div>
@@ -135,23 +136,23 @@ export function ReviewScreen({ onError, onChange }: Props) {
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && answer.trim() && submitCheck(() => api.answer(card.id, answer.trim()))}
-                placeholder="Твой ответ"
+                placeholder={t("rev.answer")}
                 disabled={busy}
               />
-              <button className="primary square" disabled={busy || !answer.trim()} onClick={() => submitCheck(() => api.answer(card.id, answer.trim()))} aria-label="Проверить">
+              <button className="primary square" disabled={busy || !answer.trim()} onClick={() => submitCheck(() => api.answer(card.id, answer.trim()))} aria-label={t("rev.check")}>
                 <Check size={20} />
               </button>
             </div>
             <div className="row">
               <button className={recorder.recording ? "primary" : ""} onClick={() => { haptic.tap(); recorder.toggle(); }} disabled={busy}>
-                {recorder.recording ? <><Square size={16} fill="currentColor" /> Стоп</> : <><Mic size={18} /> Голосом</>}
+                {recorder.recording ? <><Square size={16} fill="currentColor" /> {t("rev.stop")}</> : <><Mic size={18} /> {t("rev.voice")}</>}
               </button>
               <button className="ghost" onClick={() => setRevealed(true)} disabled={busy}>
-                <Eye size={18} /> Показать
+                <Eye size={18} /> {t("rev.show")}
               </button>
             </div>
             {recorder.error && <p className="error">{recorder.error}</p>}
-            {busy && <Thinking text="Проверяю" />}
+            {busy && <Thinking text={t("rev.checking")} />}
           </div>
         )}
 
@@ -159,8 +160,8 @@ export function ReviewScreen({ onError, onChange }: Props) {
           <div className="stack-sm answer enter">
             {check && (
               <div className={`verdict ${check.verdict}`}>
-                {verdict && <span className="verdict-title"><verdict.icon size={18} /> {verdict.text}</span>}
-                {check.answer && <span>Твой ответ: <b>{check.answer}</b></span>}
+                {verdict && <span className="verdict-title"><verdict.icon size={18} /> {t(verdict.key)}</span>}
+                {check.answer && <span>{t("rev.yourAnswer")} <b>{check.answer}</b></span>}
                 {check.comment && <p className="muted">{check.comment}</p>}
               </div>
             )}
@@ -172,7 +173,7 @@ export function ReviewScreen({ onError, onChange }: Props) {
                 <br /><span className="muted">{w.example_translation}</span>
               </p>
             )}
-            <p className="hint center-text" style={{ marginTop: 4 }}>Как легко вспомнилось?</p>
+            <p className="hint center-text" style={{ marginTop: 4 }}>{t("rev.howEasy")}</p>
             <div className="grades stagger">
               {RATINGS.map((r) => (
                 <button
@@ -182,7 +183,7 @@ export function ReviewScreen({ onError, onChange }: Props) {
                   disabled={busy}
                 >
                   <r.icon size={20} />
-                  {r.label}
+                  {t(`rev.${r.cls}`)}
                   <span className="small">{card.intervals[String(r.value)]}</span>
                 </button>
               ))}

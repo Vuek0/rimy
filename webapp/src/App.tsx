@@ -9,16 +9,17 @@ import { ProfileScreen } from "./screens/ProfileScreen";
 import { Paywall } from "./screens/Paywall";
 import { AdminScreen } from "./screens/AdminScreen";
 import { FullLoader } from "./ui";
+import { setLocale, t } from "./i18n";
 
 type Tab = "add" | "review" | "words" | "profile" | "admin";
 
-const TABS: { id: Tab; icon: LucideIcon; label: string }[] = [
-  { id: "add", icon: PlusCircle, label: "Добавить" },
-  { id: "review", icon: Layers, label: "Повторить" },
-  { id: "words", icon: BookOpen, label: "Слова" },
-  { id: "profile", icon: UserRound, label: "Профиль" },
+const TABS: { id: Tab; icon: LucideIcon }[] = [
+  { id: "add", icon: PlusCircle },
+  { id: "review", icon: Layers },
+  { id: "words", icon: BookOpen },
+  { id: "profile", icon: UserRound },
 ];
-const ADMIN_TAB = { id: "admin" as Tab, icon: BarChart3, label: "Дашборд" };
+const ADMIN_TAB = { id: "admin" as Tab, icon: BarChart3 };
 
 export function App() {
   const [tab, setTab] = useState<Tab>("add");
@@ -26,11 +27,11 @@ export function App() {
   const [error, setError] = useState("");
   const [paywall, setPaywall] = useState<string | null>(null);
 
-  const refresh = useCallback(() => api.me().then(setMe).catch((e: Error) => setError(e.message)), []);
+  const refresh = useCallback(() => api.me().then((m) => { setLocale(m.native_lang); setMe(m); }).catch((e: Error) => setError(e.message)), []);
 
   useEffect(() => {
     if (!initData()) {
-      setError("Открой приложение из Telegram-бота @rimy_ai_bot");
+      setError(t("app.openFromBot"));
       return;
     }
     refresh();
@@ -48,7 +49,7 @@ export function App() {
   }, []);
 
   if (error) return <div className="center muted">{error}</div>;
-  if (!me) return <FullLoader text="Загружаю Rimy…" />;
+  if (!me) return <FullLoader text={t("app.loading")} />;
 
   const tabs = me.is_admin ? [...TABS, ADMIN_TAB] : TABS;
   return (
@@ -64,13 +65,13 @@ export function App() {
         {tab === "admin" && me.is_admin && <AdminScreen onError={onError} />}
       </main>
       <nav className="tabs">
-        {tabs.map((t) => {
-          const Icon = t.icon;
+        {tabs.map((item) => {
+          const Icon = item.icon;
           return (
-            <button key={t.id} className={t.id === tab ? "tab active" : "tab"} onClick={() => setTab(t.id)}>
-              <span className="tab-icon"><Icon size={21} strokeWidth={t.id === tab ? 2.4 : 2} /></span>
-              {t.label}
-              {t.id === "review" && me.stats.due > 0 && <span className="badge">{me.stats.due}</span>}
+            <button key={item.id} className={item.id === tab ? "tab active" : "tab"} onClick={() => setTab(item.id)}>
+              <span className="tab-icon"><Icon size={21} strokeWidth={item.id === tab ? 2.4 : 2} /></span>
+              {t(`tab.${item.id}`)}
+              {item.id === "review" && me.stats.due > 0 && <span className="badge">{me.stats.due}</span>}
             </button>
           );
         })}

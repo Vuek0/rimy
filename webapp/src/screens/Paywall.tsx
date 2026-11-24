@@ -3,6 +3,7 @@ import { Check, Crown, Gift, Loader2 } from "lucide-react";
 import { api, type Me } from "../api";
 import { haptic, tg } from "../telegram";
 import { PromoForm } from "../ui";
+import { t } from "../i18n";
 
 interface Props { me: Me; reason: string; onClose: () => void; onPaid: () => void }
 
@@ -44,25 +45,25 @@ export function Paywall({ me, reason, onClose, onPaid }: Props) {
           {reason && <p className="muted">{reason.split("\n")[0]}</p>}
         </div>
         <ul className="perks stagger">
-          <li><Check size={18} /> Без лимита на AI-слова и голосовые</li>
-          <li><Check size={18} /> Безлимитная AI-проверка ответов</li>
-          <li><Check size={18} /> Разговорная практика с {me.mascot}</li>
-          <li><Check size={18} /> Все языки сразу</li>
+          <li><Check size={18} /> {t("pay.perk1")}</li>
+          <li><Check size={18} /> {t("pay.perk2")}</li>
+          <li><Check size={18} /> {t("pay.perk3", { mascot: me.mascot })}</li>
+          <li><Check size={18} /> {t("pay.perk4")}</li>
         </ul>
         {me.promo_pending_days > 0 && (
-          <div className="notice ok"><Gift size={16} /><span>Твой промокод добавит ещё +{me.promo_pending_days} дн.</span></div>
+          <div className="notice ok"><Gift size={16} /><span>{t("pay.promoAdds", { n: me.promo_pending_days })}</span></div>
         )}
         <button className="primary wide" onClick={buy} disabled={busy}>
           {busy ? <Loader2 size={18} className="spin" /> : <Crown size={18} />}
-          Подписаться за {me.price_stars} Stars в месяц
+          {t("pay.subscribe", { n: me.price_stars })}
         </button>
         {promoOpen ? (
           <div className="enter"><PromoForm onDone={onPaid} compact /></div>
         ) : (
-          <button className="ghost wide" onClick={() => setPromoOpen(true)}><Gift size={18} /> У меня есть промокод</button>
+          <button className="ghost wide" onClick={() => setPromoOpen(true)}><Gift size={18} /> {t("pay.havePromo")}</button>
         )}
-        <button className="ghost wide" onClick={onClose} style={{ color: "var(--muted)" }}>Не сейчас</button>
-        <p className="hint center-text">Повторение карточек всегда бесплатно</p>
+        <button className="ghost wide" onClick={onClose} style={{ color: "var(--muted)" }}>{t("pay.notNow")}</button>
+        <p className="hint center-text">{t("pay.reviewFree")}</p>
       </div>
     </div>
   );

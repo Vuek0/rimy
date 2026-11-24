@@ -4,6 +4,7 @@ import { api, type Analysis, type Me } from "../api";
 import { haptic } from "../telegram";
 import { useRecorder } from "../useRecorder";
 import { Thinking } from "../ui";
+import { t } from "../i18n";
 
 interface Props { me: Me; onError: (e: unknown) => void; onSaved: () => void }
 
@@ -78,58 +79,58 @@ export function AddScreen({ me, onError, onSaved }: Props) {
   return (
     <div className="stack">
       <div className="hero stagger">
-        <span className="eyebrow">{lang ? `${lang.flag} ${lang.name}` : "Новое слово"}</span>
-        <h1>Скажи слово,<br />карточка готова</h1>
-        <p className="muted">Хоть на русском: {me.mascot} переведёт, найдёт пример и озвучит</p>
+        <span className="eyebrow">{lang ? `${lang.flag} ${lang.name}` : t("add.eyebrow")}</span>
+        <h1 style={{ whiteSpace: "pre-line" }}>{t("add.title")}</h1>
+        <p className="muted">{t("add.sub", { mascot: me.mascot })}</p>
         <div className={recorder.recording ? "mic-wrap recording" : "mic-wrap"}>
           <span className="mic-ring" /><span className="mic-ring" /><span className="mic-ring" />
           <button
             className={recorder.recording ? "mic-btn recording" : "mic-btn"}
             onClick={() => { haptic.tap(); recorder.toggle(); }}
             disabled={busy}
-            aria-label={recorder.recording ? "Остановить запись" : "Сказать слово голосом"}
+            aria-label={recorder.recording ? t("add.micStop") : t("add.micStart")}
           >
             {recorder.recording ? <Square size={36} fill="currentColor" /> : <Mic size={42} strokeWidth={2.2} />}
           </button>
         </div>
-        <span className="mic-label">{recorder.recording ? "Слушаю… нажми, когда закончишь" : "Нажми и скажи слово"}</span>
+        <span className="mic-label">{recorder.recording ? t("add.listening") : t("add.tap")}</span>
         {recorder.error && <p className="error">{recorder.error}</p>}
       </div>
 
-      <div className="divider">или напиши</div>
+      <div className="divider">{t("add.or")}</div>
       <div className="input-row enter">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder={`Слово (${lang?.name ?? me.lang} или русский)`}
+          placeholder={t("add.placeholder", { lang: lang?.name ?? me.lang })}
           maxLength={120}
           disabled={busy}
         />
-        <button className="primary square" onClick={() => submit()} disabled={busy || !text.trim()} aria-label="Разобрать слово">
+        <button className="primary square" onClick={() => submit()} disabled={busy || !text.trim()} aria-label={t("add.analyze")}>
           <ArrowRight size={20} />
         </button>
       </div>
-      {busy && <Thinking text={`${me.mascot} листает словарик`} />}
+      {busy && <Thinking text={t("add.thinking", { mascot: me.mascot })} />}
       {!me.premium && wordsLeft !== null && wordsLeft !== undefined && (
-        <p className="hint center-text">Голосовых на сегодня: {wordsLeft}</p>
+        <p className="hint center-text">{t("add.voiceLeft", { n: wordsLeft })}</p>
       )}
 
       {saved && (
         <div className="notice ok enter">
           <CheckCircle2 size={18} />
-          <span>«{saved}» в колоде! Повторим во вкладке «Повторить».</span>
+          <span>{t("add.saved", { word: saved })}</span>
         </div>
       )}
 
       {analysis && (
         <div className="card enter">
           {analysis.heard && (
-            <p className="muted row" style={{ gap: 6 }}><Headphones size={16} /> Расслышал: <b>{analysis.heard}</b></p>
+            <p className="muted row" style={{ gap: 6 }}><Headphones size={16} /> {t("add.heard")} <b>{analysis.heard}</b></p>
           )}
           {analysis.suggestions.length > 0 && (
             <div className="stack-sm">
-              <p>Может, имелось в виду:</p>
+              <p>{t("add.didYouMean")}</p>
               <div className="chips">
                 {analysis.suggestions.map((s) => (
                   <button key={s} className="chip" onClick={() => { setText(s); submit(s); }}>
@@ -142,14 +143,14 @@ export function AddScreen({ me, onError, onSaved }: Props) {
           {analysis.issues.map((i) => <p key={i} className="hint">• {i}</p>)}
 
           {analysis.senses.length === 0 ? (
-            <p>Не нашёл такого слова. Проверь написание.</p>
+            <p>{t("add.notFound")}</p>
           ) : (
             <>
               <div>
                 <h2>{analysis.display} {analysis.reading && <span className="muted">[{analysis.reading}]</span>}</h2>
                 {analysis.pos && <span className="pill" style={{ marginTop: 6 }}>{analysis.pos}</span>}
               </div>
-              <p className="hint">{analysis.senses.length > 1 ? "Выбери значения" : "Значение"}</p>
+              <p className="hint">{analysis.senses.length > 1 ? t("add.pickMany") : t("add.pickOne")}</p>
               <div className="stack-sm stagger">
                 {analysis.senses.map((s, i) => (
                   <div key={i} className={chosen.includes(i) ? "sense chosen" : "sense"} onClick={() => toggle(i)} role="checkbox" aria-checked={chosen.includes(i)}>
@@ -165,11 +166,11 @@ export function AddScreen({ me, onError, onSaved }: Props) {
               {analysis.duplicates.length > 0 && (
                 <div className="notice warn">
                   <AlertTriangle size={16} />
-                  <span>Уже есть в колоде: {analysis.duplicates.flatMap((d) => d.translations).join("; ")}</span>
+                  <span>{t("add.duplicate", { t: analysis.duplicates.flatMap((d) => d.translations).join("; ") })}</span>
                 </div>
               )}
               <button className="primary wide" onClick={save} disabled={busy || !chosen.length}>
-                <Check size={18} /> Сохранить в колоду
+                <Check size={18} /> {t("add.save")}
               </button>
             </>
           )}

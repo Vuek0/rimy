@@ -40,21 +40,45 @@ class PromoResult:
 
 
 MESSAGES = {
-    "applied": "🎁 Промокод активирован: +{days} дн. Premium! Теперь он действует до {until}.",
-    "pending": (
-        "🎁 Промокод принят! Он добавит +{days} дн. к Premium.\n"
-        "Оформи Premium, и бонус начислится автоматически."
-    ),
-    "already": "Этот промокод у тебя уже есть 🙂",
-    "unknown": "Такого промокода нет. Проверь, правильно ли он написан.",
-    "inactive": "Этот промокод больше не действует.",
-    "exhausted": "Этот промокод уже закончился.",
+    "ru": {
+        "applied": "🎁 Промокод активирован: +{days} дн. Premium! Теперь он действует до {until}.",
+        "pending": (
+            "🎁 Промокод принят! Он добавит +{days} дн. к Premium.\n"
+            "Оформи Premium, и бонус начислится автоматически."
+        ),
+        "already": "Этот промокод у тебя уже есть 🙂",
+        "unknown": "Такого промокода нет. Проверь, правильно ли он написан.",
+        "inactive": "Этот промокод больше не действует.",
+        "exhausted": "Этот промокод уже закончился.",
+    },
+    "uz": {
+        "applied": "🎁 Promokod faollashdi: Premium'ga +{days} kun! Endi u {until} gacha amal qiladi.",
+        "pending": (
+            "🎁 Promokod qabul qilindi! U Premium'ga +{days} kun qo'shadi.\n"
+            "Premium'ni rasmiylashtir, bonus avtomatik qo'shiladi."
+        ),
+        "already": "Bu promokod senda allaqachon bor 🙂",
+        "unknown": "Bunday promokod yo'q. To'g'ri yozilganini tekshir.",
+        "inactive": "Bu promokod endi amal qilmaydi.",
+        "exhausted": "Bu promokod tugagan.",
+    },
+    "en": {
+        "applied": "🎁 Promo code applied: +{days} days of Premium! It now lasts until {until}.",
+        "pending": (
+            "🎁 Promo code accepted! It adds +{days} days to Premium.\n"
+            "Get Premium and the bonus is added automatically."
+        ),
+        "already": "You already have this promo code 🙂",
+        "unknown": "There's no such promo code. Check the spelling.",
+        "inactive": "This promo code no longer works.",
+        "exhausted": "This promo code has run out.",
+    },
 }
 
 
-def message(result: PromoResult) -> str:
+def message(result: PromoResult, lang: str = "ru") -> str:
     until = result.premium_until.strftime("%d.%m.%Y") if result.premium_until else ""
-    return MESSAGES[result.status].format(days=result.days, until=until)
+    return MESSAGES.get(lang, MESSAGES["ru"])[result.status].format(days=result.days, until=until)
 
 
 async def has_paid(s: AsyncSession, user: User) -> bool:
