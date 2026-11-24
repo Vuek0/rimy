@@ -26,6 +26,8 @@ declare global {
 export const tg: TgWebApp | undefined = window.Telegram?.WebApp;
 
 export function initTelegram(): void {
+  // Telegram's own theme (not the OS one) decides light/dark: styles.css reads :root[data-scheme]
+  if (tg) document.documentElement.dataset.scheme = tg.colorScheme;
   tg?.ready();
   tg?.expand();
 }

@@ -14,6 +14,21 @@ export interface Me {
   quotas: Record<string, Quota>;
   stats: { words: number; due: number; reviewed_today: number; streak: number };
   mascot: string;
+  is_admin: boolean;
+}
+export interface Point { day: string; value: number }
+export interface Dashboard {
+  generated_at: string;
+  today: string;
+  days: number;
+  totals: {
+    users: number; new_today: number; active_today: number; words: number;
+    reviews: number; premium: number; payments: number; stars: number;
+  };
+  series: { new_users: Point[]; active_users: Point[]; words: Point[]; reviews: Point[]; ai: Point[] };
+  funnel: { key: string; label: string; users: number }[];
+  ai_today: { kind: string; label: string; count: number }[];
+  refs: { ref: string; users: number }[];
 }
 export interface Sense { translation: string; example: string; example_translation: string; note: string }
 export interface Word {
@@ -78,6 +93,8 @@ export const api = {
   rate: (cardId: number, rating: number) => post<{ next_in: string }>(`/api/review/${cardId}/rate`, { rating }),
 
   invoice: () => post<{ link: string }>("/api/premium/invoice"),
+
+  dashboard: (days: number) => request<Dashboard>(`/api/admin/dashboard?days=${days}`),
 };
 
 /** Play a word's (or its example's) pronunciation. */

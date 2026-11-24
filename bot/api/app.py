@@ -25,6 +25,7 @@ from bot.api.auth import AuthError, parse_init_data
 from bot.audio import tts
 from bot.billing import Billing, Quota
 from bot.config import Settings
+from bot.dashboard import dashboard
 from bot.db.models import Card, Deck, User, Word
 from bot.db.repo import Repo
 from bot.handlers.premium import premium_invoice_link
@@ -176,7 +177,15 @@ def create_app(
             "quotas": {q.kind: q.to_dict() for q in await c.billing.quotas(c.user, now)},
             "stats": {"words": snap.words, "due": snap.due, "reviewed_today": snap.reviewed_today, "streak": snap.streak},
             "mascot": c.persona.name,
+            "is_admin": settings.is_admin(c.user.id),
         }
+
+    @app.get("/api/admin/dashboard")
+    async def admin_dashboard(c: C, days: int = 14) -> dict[str, Any]:
+        """The team's live dashboard: only for ADMIN_IDS (it shows everyone's numbers)."""
+        if not settings.is_admin(c.user.id):
+            raise HTTPException(403, "admins only")
+        return await dashboard(c.repo.s, utcnow(), settings.timezone, max(1, min(days, 90)))
 
     @app.post("/api/lang")
     async def set_lang(body: LangIn, c: C) -> dict[str, Any]:

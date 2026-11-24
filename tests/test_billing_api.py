@@ -133,6 +133,33 @@ async def test_base_and_target_language(client):
     assert (await client.post("/api/base", json={"code": "xx"}, headers=auth(20))).status_code == 400
 
 
+async def test_admin_dashboard(client):
+    # user 30 starts from a QR ref link, adds a word and reviews it
+    await client.get("/api/me", headers=auth(30, start_param="ref_stand"))
+    await client.post("/api/events", json={"name": "app_open"}, headers=auth(30))
+    await client.post("/api/words/analyze", json={"text": "finestra"}, headers=auth(30))
+    await client.post("/api/words", json={"lemma": "finestra", "translations": ["окно"]}, headers=auth(30))
+    card = (await client.get("/api/review/next", headers=auth(30))).json()["card"]
+    await client.post(f"/api/review/{card['id']}/rate", json={"rating": 3}, headers=auth(30))
+
+    me = (await client.get("/api/me", headers=auth(30))).json()
+    assert me["is_admin"] is False
+    assert (await client.get("/api/admin/dashboard", headers=auth(30))).status_code == 403  # not for users
+
+    admin = auth(1)  # owner_id=1 in the test settings
+    assert (await client.get("/api/me", headers=admin)).json()["is_admin"] is True
+    data = (await client.get("/api/admin/dashboard?days=7", headers=admin)).json()
+    totals = data["totals"]
+    assert totals["users"] == 2 and totals["words"] == 1 and totals["reviews"] == 1 and totals["active_today"] >= 1
+    assert len(data["series"]["new_users"]) == 7 and data["series"]["new_users"][-1]["value"] == 2
+    assert data["series"]["words"][-1]["value"] == 1 and data["series"]["reviews"][-1]["value"] == 1
+    assert data["series"]["ai"][-1]["value"] == 1
+    funnel = {step["key"]: step["users"] for step in data["funnel"]}
+    assert funnel["first_word"] == 1 and funnel["first_review"] == 1 and funnel["app_open"] == 1
+    assert data["refs"] == [{"ref": "stand", "users": 1}]
+    assert {row["kind"]: row["count"] for row in data["ai_today"]}["word"] == 1
+
+
 async def test_api_requires_telegram_auth(client):
     assert (await client.get("/api/me")).status_code == 401
     assert (await client.get("/api/me", headers={"Authorization": f"tma {init_data(5, token='1:x')}"})).status_code == 401

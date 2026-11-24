@@ -6,8 +6,9 @@ import { ReviewScreen } from "./screens/ReviewScreen";
 import { WordsScreen } from "./screens/WordsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { Paywall } from "./screens/Paywall";
+import { AdminScreen } from "./screens/AdminScreen";
 
-type Tab = "add" | "review" | "words" | "profile";
+type Tab = "add" | "review" | "words" | "profile" | "admin";
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "add", icon: "➕", label: "Добавить" },
@@ -15,6 +16,7 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "words", icon: "📋", label: "Слова" },
   { id: "profile", icon: "🦥", label: "Профиль" },
 ];
+const ADMIN_TAB = { id: "admin" as Tab, icon: "📊", label: "Дашборд" };
 
 export function App() {
   const [tab, setTab] = useState<Tab>("add");
@@ -55,9 +57,10 @@ export function App() {
         {tab === "profile" && (
           <ProfileScreen me={me} onError={onError} onChange={refresh} onPremium={() => setPaywall("")} />
         )}
+        {tab === "admin" && me.is_admin && <AdminScreen onError={onError} />}
       </main>
       <nav className="tabs">
-        {TABS.map((t) => (
+        {(me.is_admin ? [...TABS, ADMIN_TAB] : TABS).map((t) => (
           <button key={t.id} className={t.id === tab ? "tab active" : "tab"} onClick={() => setTab(t.id)}>
             <span className="tab-icon">{t.icon}</span>
             {t.label}
