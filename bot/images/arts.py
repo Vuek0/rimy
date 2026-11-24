@@ -15,7 +15,7 @@ from bot.persona.card import PersonaCard
 
 log = logging.getLogger(__name__)
 
-NO_TAG = "-"  # art_tag value meaning "searched, nothing found" — don't search again
+NO_TAG = "-"  # art_tag value meaning "searched, nothing found" - don't search again
 REUSE_AFTER = 6  # with this many cached arts for an emotion, stop downloading new ones
 AVATAR_CHOICES = 6
 
@@ -30,7 +30,7 @@ EVENT_EMOTION = {
     "review_done": "happy", "milestone": "excited", "wrong": "sad", "correct": "happy", "chat": "happy", "nudge": "happy",
 }
 
-# Personas without arts (original characters) use their avatar as the one sticker — but not on every
+# Personas without arts (original characters) use their avatar as the one sticker - but not on every
 # review card, where the same picture again and again would get boring.
 AVATAR_EVENTS = {"chat", "milestone", "review_done", "nudge"}
 AVATAR_STICKER = "st:avatar"
@@ -83,7 +83,7 @@ async def send_reaction(
 ) -> bool:
     """Maybe send a picture of the persona for an event (and the text, if any).
 
-    True if a picture was sent — then the text was sent too; False means the caller sends the text itself.
+    True if a picture was sent - then the text was sent too; False means the caller sends the text itself.
     Never raises.
     """
     stickers = STYLE == "sticker"

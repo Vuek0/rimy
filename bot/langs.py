@@ -24,8 +24,17 @@ LANGS: dict[str, Lang] = {
         Lang("zh", "Chinese (Mandarin)", "китайский", "по-китайски", "🇨🇳"),
         Lang("tr", "Turkish", "турецкий", "по-турецки", "🇹🇷"),
         Lang("ru", "Russian", "русский", "по-русски", "🇷🇺"),
+        Lang("uz", "Uzbek", "узбекский", "по-узбекски", "🇺🇿"),
     ]
 }
+
+# Languages the bot can work in (the learner's base language: translations, explanations, the mascot's replies)
+BASE_LANGS: dict[str, str] = {"ru": "🇷🇺 Русский", "uz": "🇺🇿 O'zbekcha", "en": "🇬🇧 English"}
+
+
+def learnable(native: str) -> list[Lang]:
+    """Languages one can learn from this base language (everything except the base itself)."""
+    return [lang for lang in LANGS.values() if lang.code != native]
 
 
 def get_lang(code: str) -> Lang:

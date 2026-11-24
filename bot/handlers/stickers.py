@@ -16,7 +16,7 @@ from bot.utils import esc
 router = Router(name="stickers")
 
 NEW_PER_PAGE = 4  # fresh candidates per "show more"
-FORWARD_HINT = "📥 Можно переслать мне <b>любой стикер</b> из Telegram — привяжу его к эмоции."
+FORWARD_HINT = "📥 Можно переслать мне <b>любой стикер</b> из Telegram - привяжу его к эмоции."
 
 
 def _btn(text: str, data: str) -> InlineKeyboardButton:
@@ -33,10 +33,10 @@ async def _menu(repo: Repo, persona_row: Persona) -> tuple[str, InlineKeyboardMa
     rows = []
     for emotion, label in STICKER_EMOTIONS.items():
         mine = sum(a.pinned for a in await repo.cached_arts(persona_row.id, f"st:{emotion}"))
-        rows.append([_btn(f"{label}" + (f" — свой набор: {mine}" if mine else " — авто"), f"st:e:{emotion}")])
+        rows.append([_btn(f"{label}" + (f" - свой набор: {mine}" if mine else " - авто"), f"st:e:{emotion}")])
     text = (
         f"🎭 Стикеры <b>{esc(card.name)}</b> по эмоциям.\n\n"
-        "<b>Авто</b> — бот сам подбирает арты. Если собрать <b>свой набор</b>, реакции будут только из него.\n\n"
+        "<b>Авто</b> - бот сам подбирает арты. Если собрать <b>свой набор</b>, реакции будут только из него.\n\n"
         + FORWARD_HINT
     )
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
@@ -108,7 +108,7 @@ async def _show_emotion(
         mine = [a for a in await repo.cached_arts(persona_row.id, f"st:{emotion}") if a.pinned]
         await message.answer(
             f"<b>{label}</b>\n"
-            + (f"Твой набор: {len(mine)} шт. — вот они 👇" if mine else "Своего набора пока нет — выбирай из вариантов 👇")
+            + (f"Твой набор: {len(mine)} шт. - вот они 👇" if mine else "Своего набора пока нет - выбирай из вариантов 👇")
         )
         for art in mine:
             await message.answer_sticker(art.file_id, reply_markup=art_keyboard(art))

@@ -17,21 +17,90 @@ def pick(options: list[str]) -> str:
     return random.choice(options)
 
 
-def help_text(lang: Lang, greeting: str) -> str:
+# --- texts in the learner's base language (ru / uz / en): onboarding and help ---
+
+UI: dict[str, dict[str, str]] = {
+    "ru": {
+        "choose_base": "🦥 Привет! Я Рими, ленивец-полиглот.\n\nНа каком языке тебе удобнее со мной общаться?",
+        "choose_target": "Отлично! А какой язык будем учить? 🌍",
+        "base_set": "Готово: общаемся на русском 🇷🇺",
+        "greeting": "Привет! 👋 Я Рими, ленивец-полиглот 🦥",
+        "learning": "Сейчас учим",
+        "help": (
+            "🎙 <b>Самое удобное: просто отправь голосовое со словом.</b> Зажми микрофон справа внизу и скажи слово, "
+            "можно даже по-русски. Я пойму, переведу и сам сделаю карточку, печатать ничего не нужно.\n\n"
+            "📝 Можно и текстом: напиши слово или фразу.\n"
+            "💬 Спроси что угодно, например «как сказать „я опоздал“?», и я отвечу.\n\n"
+            "/app - открыть приложение\n"
+            "/review - повторить карточки\n"
+            "/list - мои слова\n"
+            "/stats - статистика\n"
+            "/lang - сменить изучаемый язык\n"
+            "/base - сменить язык общения с ботом\n"
+            "/practice - разговорная практика\n"
+            "/premium - Premium без лимитов\n"
+            "/remind - напоминания\n"
+            "/memory - что Рими помнит о тебе"
+        ),
+    },
+    "uz": {
+        "choose_base": "🦥 Salom! Men Rimi - poliglot yalqov.\n\nMen bilan qaysi tilda gaplashish qulay?",
+        "choose_target": "Ajoyib! Qaysi tilni o'rganamiz? 🌍",
+        "base_set": "Tayyor: o'zbek tilida gaplashamiz 🇺🇿",
+        "greeting": "Salom! 👋 Men Rimi - poliglot yalqov 🦥",
+        "learning": "Hozir o'rganyapmiz",
+        "help": (
+            "🎙 <b>Eng qulayi: so'zni ovozli xabar bilan yubor.</b> Pastki o'ngdagi mikrofonni bosib turing va so'zni ayting, "
+            "o'zbekcha ham bo'ladi. Men tushunaman, tarjima qilaman va kartochkani o'zim yarataman, hech narsa yozish shart emas.\n\n"
+            "📝 Matn bilan ham mumkin: so'z yoki iborani yozing.\n"
+            "💬 Istalgan savolni bering, javob beraman.\n\n"
+            "/app - ilovani ochish\n"
+            "/review - kartochkalarni takrorlash\n"
+            "/list - mening so'zlarim\n"
+            "/stats - statistika\n"
+            "/lang - o'rganiladigan tilni almashtirish\n"
+            "/base - bot tilini almashtirish\n"
+            "/practice - suhbat amaliyoti\n"
+            "/premium - cheklovsiz Premium\n"
+            "/remind - eslatmalar"
+        ),
+    },
+    "en": {
+        "choose_base": "🦥 Hi! I'm Rimy, a polyglot sloth.\n\nWhich language would you like to talk to me in?",
+        "choose_target": "Great! Which language are we learning? 🌍",
+        "base_set": "Done: we'll talk in English 🇬🇧",
+        "greeting": "Hi! 👋 I'm Rimy, a polyglot sloth 🦥",
+        "learning": "Now learning",
+        "help": (
+            "🎙 <b>The easiest way: just send a voice message with the word.</b> Hold the mic button at the bottom right "
+            "and say it, even in your own language. I'll understand, translate it and make the flashcard myself, no typing needed.\n\n"
+            "📝 Text works too: type a word or a phrase.\n"
+            "💬 Ask me anything, like \"how do I say 'I'm late'?\", and I'll answer.\n\n"
+            "/app - open the app\n"
+            "/review - review cards\n"
+            "/list - my words\n"
+            "/stats - statistics\n"
+            "/lang - change the language you learn\n"
+            "/base - change the bot's language\n"
+            "/practice - conversation practice\n"
+            "/premium - Premium, no limits\n"
+            "/remind - reminders"
+        ),
+    },
+}
+
+
+def ui(native: str, key: str) -> str:
+    return UI.get(native, UI["ru"])[key]
+
+
+def help_text(lang: Lang, greeting: str, native: str = "ru") -> str:
+    """Start / help message in the learner's base language."""
+    if native != "ru":  # the mascot's canned phrases are Russian: use the localized greeting instead
+        greeting = ui(native, "greeting")
     return (
-        f"{esc(greeting)}\n\nСейчас учим: {lang.flag} <b>{lang.name_ru}</b>.\n\n"
-        "📝 Пришли слово (текстом или голосом) — переведу, проверю и сохраню.\n"
-        "💬 Спроси что угодно — «объясни congiuntivo», «как сказать „я опоздал“?» — отвечу.\n\n"
-        "/review — повторить карточки\n"
-        "/list — мои слова\n"
-        "/stats — статистика\n"
-        "/delete <i>слово</i> — удалить слово\n"
-        "/lang — сменить язык\n"
-        "/persona — выбрать или создать персонажа\n"
-        "/practice — режим разговорной практики\n"
-        "/stickers — какие стикеры присылает персонаж\n"
-        "/remind — напоминания\n"
-        "/memory — что персонаж помнит о тебе"
+        f"{esc(greeting)}\n\n{ui(native, 'learning')}: {lang.flag} <b>{esc(lang.english if native == 'en' else lang.name_ru)}</b>.\n\n"
+        + ui(native, "help")
     )
 
 

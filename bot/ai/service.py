@@ -139,7 +139,7 @@ class AIService:
         self, audio: bytes, mime_type: str, target: str, native: str = "ru", force: bool = False
     ) -> str:
         """target is the expected language. force=True when it's certain (practice mode, a card's answer):
-        then recognition doesn't guess — short phrases with an accent were heard as the wrong language."""
+        then recognition doesn't guess - short phrases with an accent were heard as the wrong language."""
         hint = prompts.transcription_hint(target, native)
         language = target if force else None
         failures = []
@@ -302,7 +302,7 @@ def build_ai(settings: Settings) -> AIService:
         text.append(gemini)
         voice.append(gemini)
 
-    log.info("AI chain — text: %s; voice: %s", [p.name for p in text], [t.name for t in voice])
+    log.info("AI chain - text: %s; voice: %s", [p.name for p in text], [t.name for t in voice])
     return AIService(text, voice)
 
 

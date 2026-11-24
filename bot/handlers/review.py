@@ -1,7 +1,7 @@
 """Flashcard review session: front → answer (typed, spoken, or «show answer») → Again/Hard/Good/Easy → next.
 
 A shown card waits for an answer: text or a voice message is checked by the AI (synonyms, typos,
-pronunciation), then the answer is revealed with a suggested grade — the user still picks the grade.
+pronunciation), then the answer is revealed with a suggested grade - the user still picks the grade.
 """
 
 from aiogram import F, Router
@@ -12,6 +12,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from bot import menu, srs, texts
 from bot.ai.schemas import AIError
 from bot.ai.service import AIService, AnswerCheck
+from bot.billing import Billing
 from bot.db.models import Card, Deck, Persona, User
 from bot.db.repo import Repo
 from bot.handlers.speech import speech_buttons
@@ -25,7 +26,7 @@ router = Router(name="review")
 
 RATINGS = {1: ("🔁", "Снова"), 2: ("😬", "Трудно"), 3: ("👍", "Хорошо"), 4: ("😎", "Легко")}
 VERDICT_LINES = {"correct": "✅ Верно!", "almost": "🟡 Почти!", "wrong": "❌ Не совсем"}
-ANSWER_HINT = "\n\n<i>💬 Ответь текстом или голосом — или открой ответ</i>"
+ANSWER_HINT = "\n\n<i>💬 Ответь текстом или голосом - или открой ответ</i>"
 
 
 def front_text(card: Card, deck: Deck, user: User) -> str:
@@ -72,7 +73,7 @@ async def send_next_card(
             memory.stop_waiting(user.id)
         next_at = await repo.next_due_at(deck.id)
         if next_at is None:
-            await message.answer("В колоде пока нет слов. Пришли мне слово — и начнём! ✨")
+            await message.answer("В колоде пока нет слов. Пришли мне слово - и начнём! ✨")
         else:
             done = phrase(persona, "review_done", ["На сейчас всё повторено! 🎉"])
             text = f"{esc(done)}\nСледующая карточка через {format_interval(next_at - now)}."
@@ -93,7 +94,7 @@ async def send_next_card(
 
 
 @router.message(Command("review"))
-@router.message(F.text == menu.REVIEW)
+@router.message(menu.button(menu.REVIEW))
 async def cmd_review(
     message: Message,
     state: FSMContext,
@@ -167,8 +168,12 @@ async def answer_card(
     deck: Deck,
     persona: PersonaCard,
     memory: ChatMemory,
+    billing: Billing | None = None,
 ) -> bool:
-    """Check an answer to the waiting card. False if the message wasn't an answer (handle it as usual)."""
+    """Check an answer to the waiting card. False if the message wasn't an answer (handle it as usual).
+
+    On the free plan past today's AI-check limit the answer is still accepted, just shown without a verdict.
+    """
     waiting = memory.waiting_answer(user.id)
     if waiting is None:
         return False
@@ -178,12 +183,16 @@ async def answer_card(
         memory.stop_waiting(user.id)
         return False
     question, expected, lang = expected_answer(card, deck, user)
-    try:
-        check = await ai.check_answer(
-            persona, question, expected, answer, voice, lang, deck.target_lang, user.native_lang, user.gender
-        )
-    except AIError:
-        check = AnswerCheck("unknown", 0, "")
+    quota = await billing.try_consume(user, "check", utcnow()) if billing is not None else None
+    if quota is not None and quota.exceeded:
+        check = AnswerCheck("unknown", 0, "AI-проверки на сегодня закончились - сравни сам(а) и выбери оценку. /premium ⭐")
+    else:
+        try:
+            check = await ai.check_answer(
+                persona, question, expected, answer, voice, lang, deck.target_lang, user.native_lang, user.gender
+            )
+        except AIError:
+            check = AnswerCheck("unknown", 0, "")
     if check.verdict == "not_answer":
         return False  # a question or chat while a card is open: the usual flow handles it
 
@@ -209,9 +218,10 @@ async def on_rate(
     persona: PersonaCard,
     persona_row: Persona,
     memory: ChatMemory,
+    billing: Billing,
 ) -> None:
     _, card_id, rating_str = (callback.data or "").split(":")
-    card = await repo.get_card(int(card_id))
+    card = await repo.card_of_deck(deck.id, int(card_id))
     message = callback.message
     if card is None or not isinstance(message, Message):
         await callback.answer(texts.STALE)
@@ -226,6 +236,7 @@ async def on_rate(
     now = utcnow()
     new_state, due = srs.review(card.fsrs, rating, now)
     await repo.record_review(card, rating, new_state, due, now)
+    await billing.track_once(user.id, "first_review", now, source="bot")
 
     emoji, label = RATINGS[rating]
     if rating == 1:

@@ -21,7 +21,7 @@ LIST_LIMIT = 50
 
 
 @router.message(Command("list"))
-@router.message(F.text == menu.WORDS)
+@router.message(menu.button(menu.WORDS))
 async def cmd_list(message: Message, state: FSMContext, repo: Repo, deck: Deck) -> None:
     await state.clear()
     lang = get_lang(deck.target_lang)
@@ -31,7 +31,7 @@ async def cmd_list(message: Message, state: FSMContext, repo: Repo, deck: Deck) 
         return
     words = await repo.list_words(deck.id, LIST_LIMIT)
     lines = [f"{lang.flag} <b>Слова ({total})</b>" + (f", последние {LIST_LIMIT}:" if total > LIST_LIMIT else ":")]
-    lines += [f"• <b>{esc(w.display)}</b> — {esc('; '.join(w.translations))}" for w in words]
+    lines += [f"• <b>{esc(w.display)}</b> - {esc('; '.join(w.translations))}" for w in words]
     await message.answer("\n".join(lines))
 
 
@@ -49,7 +49,7 @@ async def cmd_delete(message: Message, command: CommandObject, state: FSMContext
     rows = [
         [
             InlineKeyboardButton(
-                text=f"🗑 {w.display} — {'; '.join(w.translations)}"[:60], callback_data=f"del:{w.id}"
+                text=f"🗑 {w.display} - {'; '.join(w.translations)}"[:60], callback_data=f"del:{w.id}"
             )
         ]
         for w in found[:5]
@@ -78,7 +78,7 @@ async def on_delete(callback: CallbackQuery, repo: Repo, deck: Deck) -> None:
 
 
 @router.message(Command("stats"))
-@router.message(F.text == menu.STATS)
+@router.message(menu.button(menu.STATS))
 async def cmd_stats(message: Message, state: FSMContext, repo: Repo, user: User, deck: Deck) -> None:
     await state.clear()
     tz = ZoneInfo(user.timezone)

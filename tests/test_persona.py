@@ -4,7 +4,7 @@ from bot.ai.service import SuggestedWord
 from bot.db.repo import Repo
 from bot.db.session import init_db, make_engine, make_sessionmaker
 from bot.handlers.talk import add_word_buttons, looks_like_word, split_known, words_hint
-from bot.persona.card import DEFAULT_CARD, PersonaCard, markdown_to_html, phrase, render_card
+from bot.persona.card import DEFAULT_CARD, MASCOT_NAME, PersonaCard, markdown_to_html, phrase, render_card
 from bot.persona.memory import ChatMemory
 from bot.persona.wiki import api_url, clean_anilist, clean_wikitext, pick_character
 
@@ -36,7 +36,7 @@ def test_card_tolerates_messy_ai_output():
     assert card.title == "Мегумин"
     assert phrase(card, "wrong", ["fallback"]) == "fallback"
     assert "<b>Мегумин</b>" in render_card(card)
-    assert "Рокси" in render_card(DEFAULT_CARD)
+    assert MASCOT_NAME in render_card(DEFAULT_CARD)
 
 
 def test_add_word_buttons_show_meaning_skip_too_long_and_mark_known():
@@ -44,9 +44,9 @@ def test_add_word_buttons_show_meaning_skip_too_long_and_mark_known():
     kb = add_word_buttons(new, [SuggestedWord("ciao", "привет")])
     buttons = [b for row in kb.inline_keyboard for b in row]
     assert [b.callback_data for b in buttons] == ["aw:dai", "aw:gatto", "awknown"]
-    assert buttons[0].text == "➕ dai — давай!, ну же!"
+    assert buttons[0].text == "➕ dai - давай!, ну же!"
     assert buttons[1].text == "➕ gatto"
-    assert buttons[2].text == "✅ ciao — уже в колоде"
+    assert buttons[2].text == "✅ ciao - уже в колоде"
     long = add_word_buttons([SuggestedWord("parola", "очень длинное значение " * 5)])
     assert len(long.inline_keyboard[0][0].text) <= 47 and long.inline_keyboard[0][0].text.endswith("…")
     assert add_word_buttons([]) is None
@@ -92,7 +92,7 @@ async def repo():
 async def test_persona_lifecycle(repo):
     user, _ = await repo.ensure_user(1, native_lang="ru", timezone="Asia/Tashkent", target_lang="it")
     roxy = await repo.active_persona(user)
-    assert roxy.name == "Рокси" and roxy.is_active
+    assert roxy.name == MASCOT_NAME and roxy.is_active  # the mascot is everyone's default tutor
     assert (await repo.active_persona(user)).id == roxy.id  # not duplicated
 
     megumin = await repo.add_persona(user, {**DEFAULT_CARD.model_dump(), "name": "Мегумин", "source": "KonoSuba"})

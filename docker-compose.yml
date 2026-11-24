@@ -5,6 +5,9 @@ services:
     build: .
     restart: always
     env_file: .env
+    # Mini App + API. Only on localhost: a reverse proxy (Caddy) in front gives it HTTPS.
+    ports:
+      - "127.0.0.1:8080:8080"
     volumes:
       - bot-data:/app/data
     logging:

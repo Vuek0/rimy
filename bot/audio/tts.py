@@ -33,6 +33,7 @@ VOICES = {
     "zh": ("zh-CN-XiaoxiaoNeural", "zh-CN-YunxiNeural"),
     "tr": ("tr-TR-EmelNeural", "tr-TR-AhmetNeural"),
     "ru": ("ru-RU-SvetlanaNeural", "ru-RU-DmitryNeural"),
+    "uz": ("uz-UZ-MadinaNeural", "uz-UZ-SardorNeural"),
 }
 
 

@@ -1,4 +1,4 @@
-"""/remind — reminder times, /memory — what the persona remembers (and forgetting it), /backup — backup now."""
+"""/remind - reminder times, /memory - what the persona remembers (and forgetting it), /backup - backup now."""
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -9,6 +9,7 @@ from bot.db.models import User
 from bot.db.repo import Repo
 from bot.handlers.talk import reset_conversation
 from bot.jobs.scheduler import Scheduler, parse_hours
+from bot.middlewares import AdminFilter
 from bot.persona.card import PersonaCard
 from bot.persona.memory import ChatMemory
 from bot.utils import esc, utcnow
@@ -24,7 +25,7 @@ def _btn(text: str, data: str) -> InlineKeyboardButton:
 
 def _hours_label(value: str) -> str:
     hours = [f"{h}:00" for h in parse_hours(value)]
-    return " и ".join([", ".join(hours[:-1]), hours[-1]]) if len(hours) > 1 else (hours[0] if hours else "—")
+    return " и ".join([", ".join(hours[:-1]), hours[-1]]) if len(hours) > 1 else (hours[0] if hours else "-")
 
 
 # --- /remind ---
@@ -34,7 +35,7 @@ def _remind_view(user: User) -> tuple[str, InlineKeyboardMarkup]:
     if user.reminders_enabled:
         text = (
             f"🔔 Напоминания <b>включены</b>: в {_hours_label(user.reminder_hours)} ({esc(user.timezone)}).\n\n"
-            "Если тебя давно нет, персонаж напишет, что скучает; если карточки ждут — позовёт повторить. "
+            "Если тебя давно нет, персонаж напишет, что скучает; если карточки ждут - позовёт повторить. "
             "Когда ты только что был в боте, он не беспокоит."
         )
         rows = [[_btn(("✅ " if p == user.reminder_hours else "") + _hours_label(p), f"rm:h:{p}")] for p in HOUR_PRESETS]
@@ -82,7 +83,7 @@ async def cmd_memory(message: Message, state: FSMContext, repo: Repo, user: User
         lines.append(f"Род в обращении: {gender}")
     lines += [f"• {esc(f)}" for f in facts]
     if len(lines) == 1:
-        lines.append("Пока ничего — расскажи о себе в чате 🙂")
+        lines.append("Пока ничего - расскажи о себе в чате 🙂")
     lines.append("\n<i>Это запоминается само из ваших разговоров. Повторения и слова тут не участвуют.</i>")
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[_btn("🧹 Забыть всё", "mem:ask")]])
     await message.answer("\n".join(lines), reply_markup=keyboard)
@@ -112,7 +113,7 @@ async def on_memory(callback: CallbackQuery, repo: Repo, user: User, memory: Cha
 # --- /backup ---
 
 
-@router.message(Command("backup"))
+@router.message(Command("backup"), AdminFilter())
 async def cmd_backup(message: Message, state: FSMContext, repo: Repo, scheduler: Scheduler) -> None:
     await state.clear()
     status = await message.answer("Делаю бэкап… 💾")

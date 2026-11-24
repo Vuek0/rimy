@@ -1,5 +1,6 @@
 # secrets — never commit
 .env
+.env.*
 !.env.example
 
 # local data
@@ -12,6 +13,11 @@ data/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# mini app
+webapp/node_modules/
+webapp/dist/
+*.tsbuildinfo
 
 # editors / tools
 .claude/settings.local.json

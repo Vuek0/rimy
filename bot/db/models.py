@@ -61,6 +61,58 @@ class User(Base):
     reminder_hours: Mapped[str] = mapped_column(String(50), default="12,20", server_default="12,20")  # local hours
     last_reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
+    # Profile from Telegram and acquisition: where the user came from (/start ref_<code>)
+    first_name: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    username: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    ref: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    # Picked the base language and the language to learn on /start
+    onboarded: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+
+    # Premium (Telegram Stars subscription): active while premium_until is in the future
+    premium_until: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+    def is_premium(self, now: datetime) -> bool:
+        return self.premium_until is not None and self.premium_until > now
+
+
+class Usage(Base):
+    """How many AI actions of a kind (word / voice / chat / check) a user made on a day (user's local date)."""
+
+    __tablename__ = "usage"
+    __table_args__ = (UniqueConstraint("user_id", "day", "kind", name="uq_usage_user_day_kind"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    day: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD
+    kind: Mapped[str] = mapped_column(String(10))
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Payment(Base):
+    """A successful Telegram Stars payment (kept for refunds and the admin report)."""
+
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    amount: Mapped[int] = mapped_column(Integer)  # Stars
+    currency: Mapped[str] = mapped_column(String(8), default="XTR")
+    payload: Mapped[str] = mapped_column(String(128), default="")
+    charge_id: Mapped[str] = mapped_column(String(200), unique=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class Event(Base):
+    """Product analytics kept in our own DB: the funnel and the lead count for reports."""
+
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    name: Mapped[str] = mapped_column(String(50), index=True)
+    props: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
+
 
 class UserFact(Base):
     """Something the persona remembers about the user: "studies at a university", "loves pasta"…"""

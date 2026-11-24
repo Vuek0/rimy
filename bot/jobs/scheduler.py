@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -31,11 +32,12 @@ QUIET_AFTER_ACTIVITY = timedelta(hours=3)  # don't nudge someone who was just he
 MISS_YOU_AFTER = timedelta(hours=20)
 BACKUP_HOUR = 3  # local time
 BACKUP_KEY = "last_backup_date"
+SEND_PAUSE = 0.05  # seconds between reminders to different users
 
 FALLBACK = {
-    "review": ["Карточки ждут тебя! Пара минут — и всё повторим ✨", "Dai, время повторения! 📚"],
+    "review": ["Карточки ждут тебя! Пара минут - и всё повторим ✨", "Dai, время повторения! 📚"],
     "miss_you": ["Я скучаю… Заглянешь повторить пару слов? 🥺", "Тебя давно не было! Возвращайся, я жду 💫"],
-    "backup": ["Сохранила все наши слова в надёжное место 💾", "Держи копию нашей колоды — на всякий случай 💾"],
+    "backup": ["Сохранила все наши слова в надёжное место 💾", "Держи копию нашей колоды - на всякий случай 💾"],
 }
 START_REVIEW_KB = InlineKeyboardMarkup(
     inline_keyboard=[[InlineKeyboardButton(text="📚 Начать повторение", callback_data="rv:start")]]
@@ -97,9 +99,16 @@ class Scheduler:
         async with self.sessionmaker() as session:
             repo = Repo(session)
             for user in await repo.all_users():
-                if user.id == self.settings.owner_id and user.reminders_enabled:
-                    await self.maybe_remind(repo, user, now)
-                    await session.commit()
+                if not user.reminders_enabled:
+                    continue
+                try:
+                    if await self.maybe_remind(repo, user, now):
+                        await asyncio.sleep(SEND_PAUSE)  # stay well under Telegram's ~30 messages/second
+                except TelegramForbiddenError:
+                    user.reminders_enabled = False  # the user blocked the bot: stop writing to them
+                except Exception:
+                    log.exception("reminder for %s failed", user.id)
+                await session.commit()
             await self.maybe_backup(repo, now)
             await session.commit()
 
@@ -151,24 +160,18 @@ class Scheduler:
         return sent
 
     async def send_backup(self, repo: Repo, now: datetime) -> bool:
+        """The whole database goes to the admins only (it holds every user's data)."""
         data = await make_backup(self.settings.database_url)
         if data is None:
             log.info("backup skipped: not an SQLite database")
             return False
-        owner, deck = await repo.ensure_user(
-            self.settings.owner_id, native_lang=self.settings.native_lang, timezone=self.settings.timezone,
-            target_lang=self.settings.default_target_lang,
-        )
-        persona_row = await repo.active_persona(owner)
-        card = PersonaCard.model_validate(persona_row.card)
-        snap = await snapshot(repo, owner, deck, now, None)
-        nudge = await self._nudge(card, "backup", deck.target_lang, owner.native_lang, context_block(snap))
-        target = ChatTarget(self.bot, owner.id)
-        await arts.send_reaction(target, repo, persona_row, card, "nudge", emotion=nudge.emotion, force=True)
-        date = now.astimezone(ZoneInfo(owner.timezone)).strftime("%Y-%m-%d")
-        await target.answer_document(
-            BufferedInputFile(data, filename=f"lang-lrn-bot-{date}.db.gz"),
-            caption=markdown_to_html(nudge.text) + f"\n\n💾 Слов в колоде: <b>{snap.words}</b>",
-        )
-        log.info("backup sent (%d KB)", len(data) // 1024)
-        return True
+        users = await repo.count_users()
+        date = now.astimezone(ZoneInfo(self.settings.timezone)).strftime("%Y-%m-%d")
+        for admin_id in self.settings.admins:
+            await self.bot.send_document(
+                admin_id,
+                BufferedInputFile(data, filename=f"lang-lrn-bot-{date}.db.gz"),
+                caption=f"💾 Бэкап базы за {date}\n👥 Пользователей: <b>{users}</b>",
+            )
+        log.info("backup sent to %d admin(s) (%d KB)", len(self.settings.admins), len(data) // 1024)
+        return bool(self.settings.admins)

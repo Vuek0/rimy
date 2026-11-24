@@ -28,6 +28,7 @@ REVERSE_DELAY = timedelta(days=1)
 LEARN_AHEAD = timedelta(minutes=20)
 
 MAX_FACTS = 40  # facts about the user the persona keeps
+LEGACY_DEFAULTS = {"Рокси", "Попи"}  # names of earlier default tutors, replaced by the mascot
 MAX_CHAT = 200  # chat messages kept in the DB (the prompt uses only the last few)
 
 DRAFT_FIELDS = ("lemma", "display", "reading", "pos", "translations", "example", "example_translation", "notes")
@@ -77,6 +78,8 @@ class Repo:
                 persona = await self.add_persona(user, DEFAULT_CARD.model_dump(), activate=False)
             persona.is_active = True
             await self.s.flush()
+        if persona.name in LEGACY_DEFAULTS:  # an earlier default tutor: becomes today's mascot
+            await self.update_persona(persona, DEFAULT_CARD.model_dump())
         return persona
 
     async def add_persona(self, user: User, card: dict[str, Any], activate: bool = True) -> Persona:
@@ -250,6 +253,18 @@ class Repo:
 
     async def all_users(self) -> list[User]:
         return list(await self.s.scalars(select(User)))
+
+    async def count_users(self) -> int:
+        return await self.s.scalar(select(func.count(User.id))) or 0
+
+    async def deck_of_user(self, user: User, deck_id: int) -> Deck | None:
+        deck = await self.s.get(Deck, deck_id)
+        return deck if deck is not None and deck.user_id == user.id else None
+
+    async def card_of_deck(self, deck_id: int, card_id: int) -> Card | None:
+        """A card, only if it belongs to this deck (API callers can't reach other users' cards)."""
+        card = await self.s.get(Card, card_id)
+        return card if card is not None and card.word.deck_id == deck_id else None
 
     async def meta_get(self, key: str) -> str:
         row = await self.s.get(Meta, key)

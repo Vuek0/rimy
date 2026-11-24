@@ -22,7 +22,7 @@ Return ONLY a JSON object, no markdown:
 _RULES = """\
 Rules:
 - Typo, wrong language, or not a real word: is_valid=false, put up to 3 likely intended TARGET words in "suggestions", explain in "issues".
-- Inflected form (plural, conjugated verb, participle, feminine form): keep is_valid=true, but put the dictionary form in "suggestions" and mention the form in "issues" (e.g. "mangiato — причастие от mangiare").
+- Inflected form (plural, conjugated verb, participle, feminine form): keep is_valid=true, but put the dictionary form in "suggestions" and mention the form in "issues" (e.g. "mangiato - причастие от mangiare").
 - A correct dictionary-form word: "suggestions" must be empty.
 - "senses": distinct common meanings only, most frequent first, max 4. One sense if the word is unambiguous.
 - If the input is in NATIVE instead of TARGET, treat it as a request to translate: is_valid=false and put the best TARGET equivalents in "suggestions".
@@ -49,7 +49,7 @@ def text_prompt(text: str, target: str, native: str, meaning: str = "", context:
             "\n\nThe learner took this word from a text and wants it WITH THE MEANING USED THERE."
             + (f'\nMeaning in that text ({n}): "{meaning}"' if meaning else "")
             + (f'\nThe text:\n<<<\n{context}\n>>>' if context else "")
-            + "\nReturn exactly ONE sense — that meaning — with an example close to that usage. "
+            + "\nReturn exactly ONE sense - that meaning - with an example close to that usage. "
             "Keep the form as used if it is its own dictionary entry (e.g. the interjection \"dai\"); "
             "mention the related base word in \"notes\" (e.g. \"от глагола dare\"). Don't suggest other forms."
         )
@@ -103,7 +103,7 @@ Decide what they want:
 - "word": add a {t} word or short phrase to flashcards. Either they just sent the word/phrase itself (possibly misspelled),
   or explicitly asked to add/save one ("добавь слово gatto"), or sent a {n} word they want in {t}.
 - "question": they ask something about the language: explain grammar, a meaning, a difference, "how do I say …", check a sentence.
-- "chat": anything else — greetings, small talk, talking about their day, talking to the bot's character.
+- "chat": anything else - greetings, small talk, talking about their day, talking to the bot's character.
 
 Return ONLY JSON: {{"intent": "word" | "question" | "chat", "word": "<for intent word: the exact word or phrase to add, else empty>"}}"""
 
@@ -148,7 +148,7 @@ _CARD_FORMAT = """{
     "thinking":    ["<3 very short lines while looking a word up>"],
     "saved":       ["<3 short lines after a word is saved>"],
     "correct":     ["<3 very short lines when the learner remembered a card>"],
-    "wrong":       ["<3 very short lines when the learner forgot a card — kind, in character>"],
+    "wrong":       ["<3 very short lines when the learner forgot a card - kind, in character>"],
     "review_done": ["<3 short lines when all due cards are reviewed>"]
   }
 }"""
@@ -312,7 +312,7 @@ Judge the answer:
 For a voice answer in {t}: if the transcript differs in a way that suggests a pronunciation problem
 (a sound misheard), say kindly which sound to work on.
 "comment": 1-2 short sentences in {n}, in this character's voice ({persona_style}): praise, or what exactly was wrong.
-"rating": suggested review grade — 1 wrong, 2 almost, 3 correct (you can't see how easy it was: never suggest 4).
+"rating": suggested review grade - 1 wrong, 2 almost, 3 correct (you can't see how easy it was: never suggest 4).
 Address the learner as {_learner(user_gender)} (grammatical gender in {n}). Don't start with your own name.
 
 Return ONLY JSON: {{"verdict": "correct" | "almost" | "wrong" | "not_answer", "rating": 1-4, "comment": "<text>"}}"""

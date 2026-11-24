@@ -49,7 +49,7 @@ ASK_REQUEST = (
     "Кем мне быть? 🎭\n\n"
     "• Персонаж из аниме, манги, ранобэ, игры: <i>«Мегумин из KonoSuba»</i>\n"
     "• Или опиши своего: <i>«спокойный парень-библиотекарь, немного саркастичный»</i>\n\n"
-    "/cancel — отмена"
+    "/cancel - отмена"
 )
 
 
@@ -57,7 +57,7 @@ ASK_REQUEST = (
 
 
 @router.message(Command("persona"))
-@router.message(F.text == menu.PERSONA)
+@router.message(menu.button(menu.PERSONA))
 async def cmd_persona(message: Message, state: FSMContext, repo: Repo, user: User, persona_row: Persona) -> None:
     await state.clear()
     personas = await repo.list_personas(user)
@@ -139,13 +139,13 @@ async def on_menu(
     elif action == "upl":
         await state.set_state(PersonaFlow.upload)
         await state.update_data(avatar_persona_id=persona.id)
-        await message.answer("Пришли картинку (как фото) — сделаю её аватаркой 🖼\n/cancel — отмена")
+        await message.answer("Пришли картинку (как фото) - сделаю её аватаркой 🖼\n/cancel - отмена")
     elif action == "del":
         if await repo.delete_persona(user, persona.id):
             await reset_conversation(memory, repo, user.id)
             await message.edit_text(f"Удалила персонажа <b>{esc(card.name)}</b> 🗑")
         else:
-            await message.answer("Это единственный персонаж — сначала создай другого: /persona")
+            await message.answer("Это единственный персонаж - сначала создай другого: /persona")
 
 
 # --- creating & tweaking ---

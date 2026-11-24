@@ -93,7 +93,7 @@ def test_build_ai_order_and_requires_a_key():
 
 # --- routing & persona ---
 
-from bot.persona.card import DEFAULT_CARD, PersonaCard  # noqa: E402
+from bot.persona.card import DEFAULT_CARD, MASCOT_NAME, PersonaCard  # noqa: E402
 
 
 async def test_route_parses_and_rejects_unknown_intent():
@@ -115,7 +115,7 @@ async def test_persona_reply_sends_card_history_and_mode():
     # new format with meanings, and plain strings from older/looser answers
     assert reply.words == [SuggestedWord("dai", "давай!"), SuggestedWord("bravo", "")]
     system, *rest = provider.last_messages
-    assert system["role"] == "system" and "Рокси" in system["content"] and "PRACTICE MODE" in system["content"]
+    assert system["role"] == "system" and MASCOT_NAME in system["content"] and "PRACTICE MODE" in system["content"]
     assert rest == [*history, {"role": "user", "content": "как дела?"}]
 
 

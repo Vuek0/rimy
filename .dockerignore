@@ -9,3 +9,5 @@ tests
 **/__pycache__
 .pytest_cache
 *.db
+webapp/node_modules
+webapp/dist

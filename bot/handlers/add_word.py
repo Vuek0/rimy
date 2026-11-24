@@ -14,6 +14,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from bot import texts
 from bot.ai.service import AIService
 from bot.ai.schemas import AIError, Sense, WordAnalysis
+from bot.billing import Billing
 from bot.db.models import Deck, Persona, User
 from bot.db.repo import Repo
 from bot.handlers import review
@@ -103,6 +104,7 @@ async def on_text(
     persona: PersonaCard,
     persona_row: Persona,
     memory: ChatMemory,
+    billing: Billing,
 ) -> None:
     text = (message.text or "").strip()
     if len(text) > MAX_MESSAGE_CHARS:
@@ -111,14 +113,15 @@ async def on_text(
     await state.clear()
     if memory.waiting_answer(user.id) and len(text) <= MAX_INPUT_CHARS:  # an answer to the open review card?
         status = await message.answer("Проверяю… 🔎")
-        if await review.answer_card(message, text, False, ai, repo, user, deck, persona, memory):
+        if await review.answer_card(message, text, False, ai, repo, user, deck, persona, memory, billing=billing):
             await status.delete()
             return
         await status.edit_text(phrase(persona, "thinking", texts.THINKING))
     else:
         status = await message.answer(phrase(persona, "thinking", texts.THINKING))
     await dispatch(
-        status, text, state, ai, repo, user, deck, persona, persona_row, memory, replied=replied_text(message)
+        status, text, state, ai, repo, user, deck, persona, persona_row, memory,
+        replied=replied_text(message), billing=billing,
     )
 
 
@@ -134,6 +137,7 @@ async def on_voice(
     persona: PersonaCard,
     persona_row: Persona,
     memory: ChatMemory,
+    billing: Billing,
 ) -> None:
     media = message.voice or message.audio
     assert media is not None
@@ -141,6 +145,10 @@ async def on_voice(
         await message.answer(f"Голосовое длинновато 😅 До {MAX_VOICE_SECONDS} секунд, пожалуйста.")
         return
     await state.clear()
+    quota = await billing.try_consume(user, "voice", utcnow())
+    if quota.exceeded:
+        await message.answer(billing.limit_message(quota) + "\n\nА текстом слово можно прислать прямо сейчас ✍️")
+        return
     status = await message.answer("Слушаю… 🎧")
     buffer = await bot.download(media)
     if buffer is None:
@@ -164,12 +172,12 @@ async def on_voice(
         return
     if card is not None:
         await status.edit_text(f"🎧 Расслышала: <b>{esc(heard)}</b>\nПроверяю… 🔎")
-        if await review.answer_card(message, heard, True, ai, repo, user, deck, persona, memory):
+        if await review.answer_card(message, heard, True, ai, repo, user, deck, persona, memory, billing=billing):
             await status.delete()
             return
     await dispatch(
         status, heard, state, ai, repo, user, deck, persona, persona_row, memory,
-        heard=True, replied=replied_text(message),
+        heard=True, replied=replied_text(message), billing=billing,
     )
 
 
@@ -194,8 +202,11 @@ async def dispatch(
     memory: ChatMemory,
     heard: bool = False,
     replied: str = "",
+    billing: Billing | None = None,
 ) -> None:
     """A word → flashcard flow; a question or small talk → the persona answers.
+
+    billing: counts the free plan's daily AI actions (None in tests: no limits).
 
     replied: text of the bot message the user answered with Telegram's "Reply".
     While a conversation is going on, even a one-word message may be an answer, so the AI decides
@@ -212,6 +223,8 @@ async def dispatch(
             await status.edit_text(texts.AI_ERROR)
             return
         if route.intent != "word":
+            if not await _consume(status, billing, user, "chat", prefix):
+                return
             await answer_as_persona(
                 status, text, ai, repo, memory, user, deck, persona, prefix,
                 persona_row=persona_row, small_talk=route.intent == "chat", replied=replied,
@@ -222,7 +235,20 @@ async def dispatch(
     if len(word) > MAX_INPUT_CHARS:
         await status.edit_text(prefix + texts.TOO_LONG)
         return
+    if not await _consume(status, billing, user, "word", prefix):
+        return
     await analyze_and_handle(status, word, state, ai, repo, user, deck, prefix)
+
+
+async def _consume(status: Message, billing: Billing | None, user: User, kind: str, prefix: str = "") -> bool:
+    """Count one AI action of the free plan; False (and the paywall message) if today's limit is used up."""
+    if billing is None:
+        return True
+    quota = await billing.try_consume(user, kind, utcnow())
+    if quota.exceeded:
+        await status.edit_text(prefix + billing.limit_message(quota))
+        return False
+    return True
 
 
 async def analyze_and_handle(
@@ -256,6 +282,7 @@ async def on_add_suggested(
     deck: Deck,
     persona: PersonaCard,
     memory: ChatMemory,
+    billing: Billing,
 ) -> None:
     """➕ under a persona reply: add that word with the meaning it had in that reply."""
     await callback.answer()
@@ -266,6 +293,8 @@ async def on_add_suggested(
     meaning, context = memory.word_hint(message.chat.id, message.message_id, word)
     await state.clear()
     status = await message.answer(phrase(persona, "thinking", texts.THINKING))
+    if not await _consume(status, billing, user, "word"):
+        return
     await analyze_and_handle(status, word, state, ai, repo, user, deck, meaning=meaning, context=context)
 
 
@@ -400,6 +429,7 @@ async def on_confirm(
     persona: PersonaCard,
     persona_row: Persona,
     user: User,
+    billing: Billing,
 ) -> None:
     await callback.answer()
     message = callback.message
@@ -412,6 +442,8 @@ async def on_confirm(
     if action == "save":
         now = utcnow()
         word = await repo.add_word(deck.id, draft, now)
+        await billing.track_once(user.id, "first_word", now, source="bot")
+        await billing.track(user.id, "word_saved", now, source="bot", lang=deck.target_lang)
         await state.clear()
         await message.edit_text(
             texts.render_word(draft) + f"\n\n{esc(phrase(persona, 'saved', texts.SAVED))} Повторим в /review",

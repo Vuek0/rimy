@@ -1,6 +1,30 @@
 # lang-lrn-bot
 
-A personal Telegram bot for learning foreign words, with an AI tutor that plays any character you like.
+A Telegram bot + Mini App for learning foreign words: send a word by text or voice, the AI builds the
+flashcard, and spaced repetition (FSRS, as in Anki) makes it stick. A mascot tutor reminds you in Telegram.
+
+## Product (hackathon version)
+
+- **Multi-user.** Anyone can use the bot; `/backup` and `/admin` are for `ADMIN_IDS` only.
+- **Telegram Mini App** (`webapp/`, React + Vite + TypeScript): add words by text or **voice** (mic button),
+  review cards (answer by text or voice, AI checks it), word list with pronunciation, stats, language switch.
+  It talks to a FastAPI backend (`bot/api/`) that runs in the same process as the bot. Every request is
+  authenticated with Telegram's signed `initData` — no logins.
+- **Freemium.** Free plan: a few AI actions a day (`FREE_*_PER_DAY`); reviewing cards is always free.
+  **Premium** is a 30-day Telegram Stars subscription (`/premium` in the chat, or the paywall in the app).
+- **Analytics.** Funnel events (`start → first_word → first_review → app_open → limit_reached →
+  paywall_view → purchase`) are stored in the `events` table. Deep links `t.me/<bot>?start=ref_<code>`
+  record where a user came from. `/admin [days]` shows users, the funnel, leads per ref code and Stars earned.
+- **Mascot.** The tutor is the app's mascot for everyone (`bot/persona/card.py`, `MASCOT_NAME`).
+
+### Mini App: development
+
+```bash
+cd webapp && npm install && npm run dev   # Vite on :5173, proxies /api to the bot on :8080
+npm run build                              # webapp/dist, served by the bot's API at /
+```
+
+In @BotFather set the Mini App URL to `WEBAPP_URL` (HTTPS). Locally you can expose :8080 with any HTTPS tunnel.
 
 The bot's interface is in Russian; the language you learn is configurable (Italian by default, plus English, Spanish, French, German, Portuguese, Japanese, Korean, Chinese, Turkish).
 

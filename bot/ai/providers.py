@@ -72,7 +72,7 @@ class OpenAICompatibleTranscriber:
         self.model = model
 
     async def transcribe(self, audio: bytes, mime_type: str, hint: str, language: str | None = None) -> str:
-        """language: ISO code when we know what's spoken — then Whisper doesn't have to guess."""
+        """language: ISO code when we know what's spoken - then Whisper doesn't have to guess."""
         ext = _AUDIO_EXT.get(mime_type, "ogg")
         extra = {"language": language} if language else {}
         result = await self.client.audio.transcriptions.create(
@@ -155,7 +155,7 @@ class Gemini:
         )
         instruction = (
             "Transcribe this audio exactly as spoken. " + languages
-            + "Write the words in the language actually spoken — never translate. "
+            + "Write the words in the language actually spoken - never translate. "
             "Return only the transcript, without quotes or comments. If nothing intelligible is said, return nothing."
         )
         text = await self._generate([types.Part.from_bytes(data=audio, mime_type=mime_type), instruction], "text/plain")

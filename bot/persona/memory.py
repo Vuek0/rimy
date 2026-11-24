@@ -96,6 +96,6 @@ class ChatMemory:
             self._word_hints.popitem(last=False)
 
     def word_hint(self, chat_id: int, message_id: int, word: str) -> tuple[str, str]:
-        """(meaning in that reply, the reply text) — empty strings if forgotten (e.g. after a restart)."""
+        """(meaning in that reply, the reply text) - empty strings if forgotten (e.g. after a restart)."""
         meanings, context = self._word_hints.get((chat_id, message_id), ({}, ""))
         return meanings.get(word, ""), context if word in meanings else ""

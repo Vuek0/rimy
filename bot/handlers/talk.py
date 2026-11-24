@@ -28,7 +28,7 @@ router = Router(name="talk")
 MAX_REPLY_CHARS = 3500  # Telegram limit is 4096 after HTML conversion
 MAX_CALLBACK_BYTES = 64
 
-# Starts of messages that are clearly not "a word to add" — skip the AI router for obvious words.
+# Starts of messages that are clearly not "a word to add" - skip the AI router for obvious words.
 _NOT_A_WORD = re.compile(
     r"^(как|что|почему|зачем|когда|где|какой|какая|какое|какие|чем|объясни|расскажи|поясни|переведи|скажи|"
     r"можно|а\b|привет|здравствуй|спасибо|пока|hi|hello|ciao|grazie|buongiorno|buonasera)",
@@ -58,7 +58,7 @@ async def split_known(
 
 
 def _label(item: SuggestedWord, limit: int = 45) -> str:
-    text = f"{item.word} — {item.meaning}" if item.meaning else item.word
+    text = f"{item.word} - {item.meaning}" if item.meaning else item.word
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
@@ -68,13 +68,13 @@ def add_word_buttons(new: list[SuggestedWord], known: list[SuggestedWord] = ()) 
         for w in new
         if len(f"aw:{w.word}".encode()) <= MAX_CALLBACK_BYTES
     ]
-    rows += [[InlineKeyboardButton(text=f"✅ {w.word} — уже в колоде", callback_data="awknown")] for w in known]
+    rows += [[InlineKeyboardButton(text=f"✅ {w.word} - уже в колоде", callback_data="awknown")] for w in known]
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 def words_hint(new: list, known: list) -> str:
     if new:
-        return "\n\n<i>👇 Слова из ответа можно добавить себе в колоду — жми ➕</i>"
+        return "\n\n<i>👇 Слова из ответа можно добавить себе в колоду - жми ➕</i>"
     if known:
         return "\n\n<i>✅ Все слова отсюда уже есть в твоей колоде</i>"
     return ""
@@ -105,7 +105,7 @@ async def answer_as_persona(
     small_talk: bool = False,
     replied: str = "",
 ) -> None:
-    """Persona answers. A sticker may follow only in small talk with a strong emotion — never on questions.
+    """Persona answers. A sticker may follow only in small talk with a strong emotion - never on questions.
 
     replied: the bot message the user answered with "Reply". If it's not in memory (older, or the bot
     restarted), it's added to the context so the persona knows what is being answered.
@@ -163,7 +163,7 @@ async def reset_conversation(memory: ChatMemory, repo: Repo, user_id: int) -> No
 
 
 @router.message(Command("practice"))
-@router.message(F.text == menu.PRACTICE)
+@router.message(menu.button(menu.PRACTICE))
 async def cmd_practice(
     message: Message, state: FSMContext, user: User, deck: Deck, persona: PersonaCard, memory: ChatMemory
 ) -> None:
