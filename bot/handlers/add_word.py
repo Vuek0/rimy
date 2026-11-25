@@ -314,7 +314,8 @@ async def handle_analysis(
     prefix: str = "",
 ) -> None:
     issues = "".join(f"\n• {esc(issue)}" for issue in analysis.issues)
-    suggestions = [s for s in analysis.suggestions if norm(s) != norm(original)][:3]
+    same = {norm(original), norm(analysis.lemma)} if analysis.user_translation else {norm(original)}
+    suggestions = [s for s in analysis.suggestions if norm(s) not in same][:3]
 
     if suggestions:
         await state.set_state(AddWord.fix)
@@ -366,6 +367,12 @@ async def go_senses(
     message: Message, state: FSMContext, repo: Repo, deck: Deck, analysis: WordAnalysis, original: str, prefix: str
 ) -> None:
     senses = analysis.senses[:MAX_SENSES]
+
+    if analysis.user_translation:  # "macchina - машина": the learner's own translation, no meaning to pick
+        draft = make_draft(analysis, senses[:1], original)
+        draft["translations"] = [analysis.user_translation]
+        await show_preview(message, state, repo, deck, draft, prefix)
+        return
 
     if not senses:
         draft = make_draft(analysis, [], original)

@@ -5,8 +5,11 @@
 
 # local data
 data/
+data-local/
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 
 # python
 .venv/

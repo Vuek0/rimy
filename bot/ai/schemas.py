@@ -26,6 +26,12 @@ class WordAnalysis(BaseModel):
     suggestions: list[str] = []
     notes: str = ""
     issues: list[str] = []
+    user_translation: str = ""  # "macchina - машина": the learner's own translation, used instead of ours
+
+    @field_validator("user_translation", mode="before")
+    @classmethod
+    def _text(cls, value: object) -> object:
+        return str(value or "").strip()
 
     @field_validator("suggestions", "issues", mode="before")
     @classmethod

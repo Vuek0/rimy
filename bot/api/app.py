@@ -34,6 +34,7 @@ from bot.db.models import Card, Deck, User, Word
 from bot.db.repo import Repo
 from bot.handlers.premium import premium_invoice_link
 from bot.handlers.review import expected_answer
+from bot.handlers.talk import looks_like_word
 from bot.langs import BASE_LANGS, LANGS, card_question, learnable
 from bot.persona.card import PersonaCard
 from bot.persona.context import snapshot
@@ -73,6 +74,17 @@ class LangIn(BaseModel):
 
 class RateIn(BaseModel):
     rating: int = Field(ge=1, le=4)
+
+
+class AnalyzeIn(TextIn):
+    # a word picked from Rimy's answer: the meaning it had there and the answer itself (one sense, that one)
+    meaning: str = Field(default="", max_length=200)
+    context: str = Field(default="", max_length=2000)
+
+
+class ExplainIn(BaseModel):
+    word: str = Field(min_length=1, max_length=200)
+    translation: str = Field(default="", max_length=200)
 
 
 class PromoIn(BaseModel):
@@ -404,14 +416,46 @@ def create_app(
 
     # --- adding words ---
 
-    async def analyze(c: Ctx, text: str, count: bool = True) -> dict[str, Any]:
-        """count=False: the action was already counted (a voice word counts only as "voice")."""
+    async def answer(c: Ctx, text: str, counted: bool) -> dict[str, Any]:
+        """A question instead of a word ("what's the difference between ser and estar?"): Rimy answers,
+        like in the chat. A typed question counts as a chat message; a spoken one already counted as voice."""
+        if not counted:
+            quota = await c.billing.try_consume(c.user, "chat", utcnow())
+            if quota.refused:
+                raise quota_error(c.billing, quota, c.user.native_lang)
+        try:
+            reply = await ai.persona_reply(c.persona, [], text, c.deck.target_lang, c.user.native_lang)
+        except AIError as exc:
+            log.exception("answer failed")
+            raise HTTPException(503, "AI is busy, try again") from exc
+        await c.billing.track(c.user.id, "app_question", utcnow())
+        return {
+            "kind": "answer",
+            "question": text,
+            "answer": reply.text,
+            "answer_words": [{"word": w.word, "meaning": w.meaning} for w in reply.words],
+        }
+
+    async def analyze(c: Ctx, text: str, count: bool = True, meaning: str = "", context: str = "") -> dict[str, Any]:
+        """count=False: the action was already counted (a voice word counts only as "voice").
+        Not just a word (a question, a sentence)? The same intent routing as the chat decides.
+        meaning/context: a word from Rimy's answer, analysed with the meaning it had there."""
+        if not (meaning or context) and not looks_like_word(text):
+            try:
+                route = await ai.route(text, c.deck.target_lang, c.user.native_lang)
+            except AIError:
+                route = None  # can't tell: treat it as a word, as before
+            if route is not None and route.intent != "word":
+                return await answer(c, text, counted=not count)
+            if route is not None and route.word:
+                text = route.word
+        text = text.rstrip("?").strip() or text
         if count:
             quota = await c.billing.try_consume(c.user, "word", utcnow())
             if quota.refused:
                 raise quota_error(c.billing, quota, c.user.native_lang)
         try:
-            analysis = await ai.analyze_text(text, c.deck.target_lang, c.user.native_lang)
+            analysis = await ai.analyze_text(text, c.deck.target_lang, c.user.native_lang, meaning, context)
         except AIError as exc:
             log.exception("analysis failed")
             raise HTTPException(503, "AI is busy, try again") from exc
@@ -422,14 +466,15 @@ def create_app(
         duplicates = await c.repo.find_duplicates(c.deck.id, lemma)
         return {
             **analysis.model_dump(),
+            "kind": "word",
             "lemma": lemma,
             "display": analysis.display or lemma,
             "duplicates": [word_json(w) for w in duplicates],
         }
 
     @app.post("/api/words/analyze")
-    async def analyze_text(body: TextIn, c: C) -> dict[str, Any]:
-        return await analyze(c, body.text.strip())
+    async def analyze_text(body: AnalyzeIn, c: C) -> dict[str, Any]:
+        return await analyze(c, body.text.strip(), meaning=body.meaning.strip(), context=body.context.strip())
 
     @app.post("/api/words/analyze-voice")
     async def analyze_voice(c: C, audio: UploadFile = File(...)) -> dict[str, Any]:
@@ -445,10 +490,24 @@ def create_app(
         except AIError as exc:
             log.exception("transcription failed")
             raise HTTPException(503, "speech recognition is busy, try again") from exc
-        heard = heard.rstrip("?").strip()[:MAX_TEXT]
-        if not heard:
+        heard = heard.strip()[:MAX_TEXT]  # keep a "?": a spoken question is answered, not made a card
+        if not heard.rstrip("?").strip():
             raise HTTPException(422, NOT_HEARD.get(c.user.native_lang, NOT_HEARD["ru"]))
         return {**(await analyze(c, heard, count=False)), "heard": heard}  # after the spread: analysis has heard=""
+
+    @app.post("/api/words/explain")
+    async def explain_word(body: ExplainIn, c: C) -> dict[str, str]:
+        """The "Explain" button on a word card: a short explanation by Rimy (counts as a chat message)."""
+        quota = await c.billing.try_consume(c.user, "chat", utcnow())
+        if quota.refused:
+            raise quota_error(c.billing, quota, c.user.native_lang)
+        try:
+            text = await ai.explain(c.persona, body.word, body.translation, c.deck.target_lang, c.user.native_lang)
+        except AIError as exc:
+            log.exception("explanation failed")
+            raise HTTPException(503, "AI is busy, try again") from exc
+        await c.billing.track(c.user.id, "word_explained", utcnow())
+        return {"text": text}
 
     @app.post("/api/words")
     async def save_word(body: DraftIn, c: C) -> dict[str, Any]:

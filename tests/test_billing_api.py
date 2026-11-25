@@ -55,6 +55,15 @@ class FakeAI:
     async def check_answer(self, *args, **kwargs):
         return AnswerCheck("correct", 3, "Bravo!")
 
+    async def route(self, text, target, native, previous=""):
+        return SimpleNamespace(intent="question" if "?" in text else "word", word=text.split()[-1])
+
+    async def persona_reply(self, card, history, text, target, native, practice=False, context=""):
+        return SimpleNamespace(text="**Ser** is who you are, **estar** is how you are.", words=[SimpleNamespace(word="ser", meaning="быть")])
+
+    async def explain(self, card, word, translation, target, native):
+        return f"{word} = {translation}: used every day."
+
 
 class FakeBot:
     def __init__(self):
@@ -206,6 +215,35 @@ async def test_admin_people(client):
     assert {s["key"]: s["at"] for s in profile["funnel"]}["first_word"] is not None
     assert (await client.get("/api/admin/users/999", headers=admin)).status_code == 404
     assert (await client.get("/api/admin/users/50/avatar", headers=admin)).status_code == 200
+
+
+async def test_add_screen_question_and_explain(client):
+    # a word: analysed as before (no routing for 1-3 words)
+    word = (await client.post("/api/words/analyze", json={"text": "finestra"}, headers=auth(90))).json()
+    assert word["kind"] == "word" and word["user_translation"] == ""
+    # a question: Rimy answers, it costs a chat message, not an AI word
+    res = (await client.post("/api/words/analyze", json={"text": "в чём разница ser и estar?"}, headers=auth(90))).json()
+    assert res["kind"] == "answer" and "**Ser**" in res["answer"] and res["answer_words"] == [{"word": "ser", "meaning": "быть"}]
+    me = (await client.get("/api/me", headers=auth(90))).json()
+    assert me["quotas"]["chat"]["used"] == 1 and me["quotas"]["word"]["used"] == 1
+    # a word picked from the answer: analysed with its meaning there, no routing, one AI word
+    picked = (await client.post(
+        "/api/words/analyze", json={"text": "ser", "meaning": "быть", "context": res["answer"]}, headers=auth(90)
+    )).json()
+    assert picked["kind"] == "word" and picked["lemma"] == "ser"
+    assert (await client.get("/api/me", headers=auth(90))).json()["quotas"]["word"]["used"] == 2
+    # "Explain" on a word card
+    explained = (await client.post("/api/words/explain", json={"word": "la finestra", "translation": "окно"}, headers=auth(90))).json()
+    assert explained == {"text": "la finestra = окно: used every day."}
+    assert (await client.get("/api/me", headers=auth(90))).json()["quotas"]["chat"]["used"] == 2
+
+
+def test_own_translation_is_parsed():
+    from bot.ai.schemas import parse_analysis
+
+    a = parse_analysis('{"lemma": "macchina", "senses": [{"translation": "машина"}], "user_translation": " машина "}')
+    assert a.user_translation == "машина"
+    assert parse_analysis('{"lemma": "gatto", "user_translation": null}').user_translation == ""
 
 
 async def test_avatar_from_telegram(client):

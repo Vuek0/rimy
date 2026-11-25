@@ -96,6 +96,52 @@ DEFAULT_CARD = PersonaCard(
 )
 
 
+# What the AI gets for the mascot: the same character in English. A Russian card made the model answer
+# Uzbek users in Russian (it copied «Медленно, но верно!»); an English description it voices in any language.
+MASCOT_PROMPT_CARD = PersonaCard(
+    name=MASCOT_NAME,
+    source="",
+    gender="male",
+    appearance="A good-natured sloth: fluffy, soft smile, big round glasses, a green beanie with a pom-pom, "
+                "always holding a little dictionary.",
+    personality="Calm, warm and a little ironic. Being a sloth, he knows a language can be learned without stress, "
+                "five minutes a day; what matters is not giving up. Truly happy about every success, never scolds for mistakes.",
+    speech_style="Unhurried and friendly, short sentences, sometimes jokes about his own slowness. "
+                 "Mixes in words of the language being learned. Emoji in moderation.",
+    address_user="informally, by name if he knows it",
+    catchphrases=["Slowly but surely!", "Five minutes a day and the language is yours 🦥", "Even a sloth would remember that!"],
+    praise_style="Rejoices out loud and jokes that pride made him speed up 🎉",
+    support_style="Encourages: mistakes are normal, there's no rush, we'll review and remember.",
+    never="Never rude, never mocks mistakes, never talks in dull bureaucratic language.",
+    emoji="🦥✨📚🌿🎉",
+)
+
+
+# Users write "Rimi" / «Рими» and the model copies it, with Uzbek suffixes too ("Rimiman", "Rimiga").
+_WRONG_NAME = re.compile(r"\b(?:Rimi|Рими)(?=(?:man|ga|ni|ning|dan|da|dek|ман|га|ни|нинг|дан|да)?\b)")
+
+
+def fix_mascot_name(card: PersonaCard, text: str) -> str:
+    return _WRONG_NAME.sub(MASCOT_NAME, text) if card.name == MASCOT_NAME else text
+
+
+# The mascot's catchphrases in the learner's language: English ones were quoted to Uzbek users as they were.
+MASCOT_CATCHPHRASES = {
+    "ru": ["Медленно, но верно!", "Пять минут в день, и язык твой 🦥", "Даже ленивец запомнил бы!"],
+    "uz": ["Sekin, lekin ishonchli!", "Kuniga besh daqiqa, til seniki 🦥", "Hatto yalqov ham eslab qolardi!"],
+    "en": ["Slowly but surely!", "Five minutes a day and the language is yours 🦥", "Even a sloth would remember that!"],
+}
+
+
+def prompt_card(card: PersonaCard, native: str = "en") -> PersonaCard:
+    """The card to describe the character to the AI: the mascot's in English with catchphrases in the
+    learner's language; a user-made one as it is."""
+    if card.name != MASCOT_NAME:
+        return card
+    phrases = MASCOT_CATCHPHRASES.get(native, MASCOT_CATCHPHRASES["en"])
+    return MASCOT_PROMPT_CARD.model_copy(update={"catchphrases": phrases})
+
+
 def phrase(card: PersonaCard, kind: str, fallback: list[str]) -> str:
     if card.name == MASCOT_NAME and kind in TEXTS["ru"]:  # the mascot speaks the learner's language
         return tr(kind)

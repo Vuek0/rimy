@@ -64,8 +64,14 @@ export interface Word {
   translations: string[]; example: string; example_translation: string; notes: string; created_at: string;
 }
 export interface Analysis {
+  kind: "word";
   heard?: string; is_valid: boolean; lemma: string; display: string; reading: string; pos: string;
   senses: Sense[]; suggestions: string[]; notes: string; issues: string[]; duplicates: Word[];
+  user_translation: string;  // "macchina - машина": the learner gave their own translation
+}
+/** A question instead of a word: Rimy's answer, with words from it to add. */
+export interface Answer {
+  kind: "answer"; heard?: string; question: string; answer: string; answer_words: { word: string; meaning: string }[];
 }
 export interface Card {
   id: number; direction: "fwd" | "rev"; prompt: string; prompt_lang: string; question: string;
@@ -107,8 +113,12 @@ export const api = {
   setBase: (code: string) => post<{ native_lang: string }>("/api/base", { code }),
   track: (name: string, props: Record<string, unknown> = {}) => post("/api/events", { name, props }).catch(() => {}),
 
-  analyze: (text: string) => post<Analysis>("/api/words/analyze", { text }),
-  analyzeVoice: (blob: Blob) => request<Analysis>("/api/words/analyze-voice", { method: "POST", body: audioForm(blob) }),
+  // meaning/context: a word from Rimy's answer, to get the meaning it had there
+  analyze: (text: string, meaning = "", context = "") =>
+    post<Analysis | Answer>("/api/words/analyze", { text, meaning, context }),
+  analyzeVoice: (blob: Blob) =>
+    request<Analysis | Answer>("/api/words/analyze-voice", { method: "POST", body: audioForm(blob) }),
+  explain: (word: string, translation: string) => post<{ text: string }>("/api/words/explain", { word, translation }),
   saveWord: (draft: Draft) => post<Word & { achievement?: Achievement | null }>("/api/words", draft),
   words: () => request<{ words: Word[]; total: number }>("/api/words"),
   deleteWord: (id: number) => request(`/api/words/${id}`, { method: "DELETE" }),

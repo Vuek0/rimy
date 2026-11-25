@@ -16,7 +16,8 @@ Return ONLY a JSON object, no markdown:
   ],
   "suggestions": ["<what the learner most likely meant, best first>"],
   "notes": "<1-2 short grammar notes in NATIVE: gender, irregular plural, verb group, auxiliary, etc.; or empty>",
-  "issues": ["<short problems found, in NATIVE>"]
+  "issues": ["<short problems found, in NATIVE>"],
+  "user_translation": "<the learner's own NATIVE translation if they gave one together with the word, exactly as given; else empty>"
 }"""
 
 _RULES = """\
@@ -28,6 +29,9 @@ Rules:
 - If the input is in NATIVE instead of TARGET, treat it as a request to translate: is_valid=false and put the best TARGET equivalents in "suggestions".
 - If the input is a TARGET word written phonetically in NATIVE script (a speech-recognition artifact, e.g. «Ла Финестра»
   for "la finestra"), treat it as that TARGET word: is_valid=false and the proper spelling first in "suggestions".
+- The learner may give the word together with their own translation ("macchina - машина", "macchina это машина",
+  "macchina машина", by voice too): analyse only the TARGET word, put their translation in "user_translation",
+  and still fill "senses" (their meaning first if it is right). A wrong own translation: mention it in "issues".
 - Only include senses a learner would actually meet; skip rare, technical or doubtful ones.
 - Double-check the spelling of every TARGET word you write: lemma, article, plural forms, examples.
 - Never invent words or translations. If unsure, say so in "issues"."""
@@ -230,6 +234,9 @@ Character card:
 {mode}
 
 Rules:
+- LANGUAGE: the learner's language is {n}. Write "reply" (except the {t} words you teach) and every "meaning" in {n},
+  even if the character card, earlier messages or the user's own message are in another language (e.g. Russian).
+  The card describes you in English: never quote it in English. Use a catchphrase at most now and then, not every time.
 - Language facts must be correct. The character's style never overrides accuracy; if unsure, say so in character.
 - Write your name exactly as in the card ("name") in every language; never transliterate it into another alphabet.
 {_grammar_gender_rule(gender, n)}
@@ -279,9 +286,22 @@ def nudge_prompt(card_json: str, target: str, native: str, gender: str, kind: st
 Situation: {situations[kind]}
 The user is NOT in the chat right now: your message starts the conversation (don't say they came back).
 Write ONE short message (1-3 sentences) in {n}, fully in character, you may add one {t} phrase with a translation.
-Your name is written exactly as in the card, never transliterated.
+Your name is written exactly as in the card, never transliterated. Write in {n} even though the card is in English.
 {_grammar_gender_rule(gender, n)}
 Return ONLY JSON: {{"text": "<the message>", "emotion": "happy" | "excited" | "sad" | "surprised" | "proud"}}"""
+
+
+# --- explaining a word (the Mini App's "Explain" button) ---
+
+
+def explain_prompt(word: str, translation: str, target: str, native: str, persona_style: str) -> str:
+    t, n = get_lang(target).prompt, get_lang(native).prompt
+    meaning = f' (meaning: "{translation}")' if translation else ""
+    return f"""A learner of {t} (native language: {n}) asks to explain the {t} word "{word}"{meaning}.
+Explain it simply, in {n} only (keep {t} words and examples in {t}), in this character's voice: {persona_style}.
+2-4 short sentences: when people say it, how it differs from similar words, a typical mistake or a tip to remember it.
+At most one short {t} example with a {n} translation. No headings, no lists. Language facts must be correct.
+Return ONLY JSON: {{"text": "<the explanation>"}}"""
 
 
 # --- checking an answer to a review card ---
@@ -314,7 +334,7 @@ Judge the answer:
 - "not_answer": clearly not an attempt to answer this card (a question, a request, unrelated chat).
 For a voice answer in {t}: if the transcript differs in a way that suggests a pronunciation problem
 (a sound misheard), say kindly which sound to work on.
-"comment": 1-2 short sentences in {n}, in this character's voice ({persona_style}): praise, or what exactly was wrong.
+"comment": 1-2 short sentences in {n} (only {n}, whatever language the style note is in), in this character's voice ({persona_style}): praise, or what exactly was wrong.
 "rating": suggested review grade - 1 wrong, 2 almost, 3 correct (you can't see how easy it was: never suggest 4).
 Address the learner as {_learner(user_gender)} (grammatical gender in {n}). Don't start with your own name.
 

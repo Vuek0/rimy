@@ -119,6 +119,50 @@ async def test_persona_reply_sends_card_history_and_mode():
     assert rest == [*history, {"role": "user", "content": "как дела?"}]
 
 
+async def test_uzbek_learner_gets_uzbek_latin():
+    # the case from the stand: an Uzbek learner of French got a Russian reply and Cyrillic meanings
+    russian = FakeText("russian", result='{"reply": "Салют, Расул! Пять минут в день, и ты уже говоришь по-французски!", '
+                                         '"words": [{"word": "aujourd\'hui", "meaning": "бугун"}]}')
+    uzbek = FakeText("uzbek", result='{"reply": "Salut, Rasul! Kuniga besh daqiqa, sekin, lekin ishonchli 🦥", '
+                                     '"words": [{"word": "Comment ça va", "meaning": "қалайсан"}]}')
+    ai = AIService([russian, uzbek], [])
+    reply = await ai.persona_reply(DEFAULT_CARD, [], "Salut, Rimy", "fr", "uz")
+    assert reply.text.startswith("Salut, Rasul!") and reply.words == [SuggestedWord("Comment ça va", "qalaysan")]
+    system = uzbek.last_messages[0]["content"]
+    # an English card, but the catchphrases in the learner's language
+    assert "Latin alphabet" in system and "Sekin, lekin ishonchli" in system and "Медленно" not in system
+    assert "Slowly but surely" not in system and "good-natured sloth" in system
+
+    # every model answers in Russian: one more insisting round, transliterated rather than an error
+    russian_only = FakeText("r", result='{"reply": "Хорошо, давай!"}')
+    stubborn = AIService([russian_only], [])
+    assert (await stubborn.persona_reply(DEFAULT_CARD, [], "hi", "fr", "uz")).text == "Xorosho, davay!"
+    assert russian_only.calls == 2 and "IMPORTANT" in russian_only.last_messages[-2]["content"]
+
+    # the model copies the user's "Rimi": the name is always Rimy, with Uzbek suffixes too
+    named = FakeText("n", result='{"reply": "Salom! Men Rimiman. Rimi bilan oson, Rimiga yoz. Primitive"}')
+    assert (await AIService([named], []).persona_reply(DEFAULT_CARD, [], "Salut, Rimi", "fr", "uz")).text == \
+        "Salom! Men Rimyman. Rimy bilan oson, Rimyga yoz. Primitive"
+
+    # learners of Russian legitimately get Cyrillic words; Russian-speaking users are untouched
+    keep = FakeText("keep", result='{"reply": "Bu so\'z: **окно**"}')
+    assert (await AIService([keep], []).persona_reply(DEFAULT_CARD, [], "hi", "ru", "uz")).text == "Bu so'z: **окно**"
+    ru = FakeText("ru", result='{"reply": "Привет!"}')
+    assert (await AIService([ru], []).persona_reply(DEFAULT_CARD, [], "hi", "it", "ru")).text == "Привет!"
+
+
+def test_uzbek_transliteration():
+    from bot.ai.script import looks_russian, uz_to_latin
+
+    assert uz_to_latin("Ўзбекистон, қалайсан? Ғалаба, Ҳа! Ёшлар, Шаҳар, ер, цирк") == \
+        "O'zbekiston, qalaysan? G'alaba, Ha! Yoshlar, Shahar, yer, sirk"
+    assert uz_to_latin("Comment ça va") == "Comment ça va"
+    assert looks_russian("Привет! Как дела? Пять минут в день") and not looks_russian("Қалайсан, дўстим?")
+    # a Cyrillic name in a Latin reply isn't a Russian reply; a Russian reply with French words is
+    assert not looks_russian("Salut, Расул! Bugun qaysi so'zni yodlaymiz? Comment ça va?")
+    assert looks_russian("Салют, Расул! Comment ça va aujourd'hui? Пять минут в день, и ты уже говоришь!")
+
+
 async def test_persona_reply_empty_falls_back():
     ai = AIService([FakeText("empty", result='{"reply": ""}'), FakeText("ok", result='{"reply": "ok"}')], [])
     assert (await ai.persona_reply(DEFAULT_CARD, [], "hi", "it", "ru")).text == "ok"

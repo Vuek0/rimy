@@ -17,7 +17,8 @@ from bot.ai.providers import (
 )
 from bot.ai.schemas import AIError, WordAnalysis, parse_analysis, parse_json_object
 from bot.config import Settings
-from bot.persona.card import PersonaCard
+from bot.ai.script import has_cyrillic, looks_russian, uz_to_latin
+from bot.persona.card import PersonaCard, fix_mascot_name, prompt_card
 from bot.persona.wiki import character_info
 
 log = logging.getLogger(__name__)
@@ -204,17 +205,20 @@ class AIService:
         context: str = "",
     ) -> PersonaReply:
         """context: memory about the user, learning progress and mood (bot/persona/context.py)."""
-        card_json = card.model_dump_json(exclude={"phrases"})
+        card_json = prompt_card(card, native).model_dump_json(exclude={"phrases"})
         system = prompts.persona_system_prompt(card_json, target, native, practice, card.gender, context)
         messages = [{"role": "system", "content": system}, *history, {"role": "user", "content": text}]
+        strict = True  # first round: a Russian reply to an Uzbek learner is rejected, the next model tries
 
         def parse(raw: str) -> PersonaReply:
             data = parse_json_object(raw)
-            reply = str(data.get("reply") or "").strip()
+            reply = fix_mascot_name(card, fix_script(str(data.get("reply") or "").strip(), native, target, strict))
             if not reply:
                 raise AIError("empty reply")
             emotion = str(data.get("emotion") or "none").strip().lower()
             words = parse_suggested_words(data.get("words"))
+            if native == "uz":  # meanings are always in the base language: Latin
+                words = [SuggestedWord(w.word, uz_to_latin(w.meaning)) for w in words]
             sticker = data.get("sticker") is True or str(data.get("sticker")).lower() == "true"
             remember = [str(f).strip() for f in data.get("remember") or [] if str(f).strip()][:5]
             gender = str(data.get("user_gender") or "").strip().lower()
@@ -225,13 +229,22 @@ class AIService:
                 user_gender=gender if gender in ("male", "female") else "",
             )
 
-        return await self._ask(messages, parse)
+        try:
+            return await self._ask(messages, parse)
+        except AIError:
+            if native != "uz":
+                raise
+        # every model answered in Russian: ask once more, insisting, and take what comes (transliterated)
+        strict = False
+        insist = {"role": "system", "content": "IMPORTANT: write the reply in Uzbek, Latin alphabet only (not Russian, not Cyrillic)."}
+        return await self._ask([*messages[:-1], insist, messages[-1]], parse)
 
     async def check_answer(
         self, persona: PersonaCard, question: str, expected: str, answer: str, voice: bool,
         answer_lang: str, target: str, native: str, user_gender: str = "",
     ) -> AnswerCheck:
-        style = persona.speech_style or persona.personality
+        described = prompt_card(persona, native)
+        style = described.speech_style or described.personality
         prompt = prompts.answer_check_prompt(
             question, expected, answer, voice, answer_lang, target, native, f"{persona.name}: {style}"[:300],
             user_gender,
@@ -246,24 +259,48 @@ class AIService:
                 rating = min(4, max(1, int(data.get("rating") or 0)))
             except (TypeError, ValueError):
                 rating = {"correct": 3, "almost": 2}.get(verdict, 1)
-            return AnswerCheck(verdict, rating, str(data.get("comment") or "").strip())
+            comment = str(data.get("comment") or "").strip()
+            return AnswerCheck(verdict, rating, uz_to_latin(comment) if native == "uz" and target != "ru" else comment)
+
+        return await self._ask(_user(prompt), parse)
+
+    async def explain(self, card: PersonaCard, word: str, translation: str, target: str, native: str) -> str:
+        """A short in-character explanation of a word (the Mini App's "Explain" button)."""
+        style = prompt_card(card, native)
+        prompt = prompts.explain_prompt(word, translation, target, native, f"{style.name}: {style.speech_style}"[:300])
+
+        def parse(raw: str) -> str:
+            text = fix_mascot_name(card, fix_script(str(parse_json_object(raw).get("text") or "").strip(), native, target))
+            if not text:
+                raise AIError("empty explanation")
+            return text
 
         return await self._ask(_user(prompt), parse)
 
     async def nudge(self, card: PersonaCard, kind: str, target: str, native: str, context: str = "") -> Nudge:
         """A short in-character message the persona sends by itself: kind = review / miss_you / backup."""
-        card_json = card.model_dump_json(exclude={"phrases"})
+        card_json = prompt_card(card, native).model_dump_json(exclude={"phrases"})
         prompt = prompts.nudge_prompt(card_json, target, native, card.gender, kind, context)
 
         def parse(raw: str) -> Nudge:
             data = parse_json_object(raw)
-            text = str(data.get("text") or "").strip()
+            text = fix_mascot_name(card, fix_script(str(data.get("text") or "").strip(), native, target))
             if not text:
                 raise AIError("empty nudge")
             emotion = str(data.get("emotion") or "happy").strip().lower()
             return Nudge(text, emotion if emotion in EMOTIONS else "happy")
 
         return await self._ask(_user(prompt), parse)
+
+
+def fix_script(text: str, native: str, target: str, strict: bool = True) -> str:
+    """Uzbek learners read Latin. A reply in Russian is rejected (strict: the next model tries);
+    stray Uzbek Cyrillic is transliterated. Learners of Russian legitimately get Cyrillic words: left alone."""
+    if native != "uz" or target == "ru" or not has_cyrillic(text):
+        return text
+    if strict and looks_russian(text):
+        raise AIError("answered in Russian instead of Uzbek")
+    return uz_to_latin(text)
 
 
 def _user(prompt: str) -> Messages:
