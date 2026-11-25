@@ -49,7 +49,7 @@ COMMANDS = [
     BotCommand(command="base", description="Язык общения с ботом"),
     BotCommand(command="delete", description="Удалить слово"),
     BotCommand(command="remind", description="Напоминания"),
-    BotCommand(command="memory", description="Что Рими помнит обо мне"),
+    BotCommand(command="memory", description="Что Rimy помнит обо мне"),
     BotCommand(command="help", description="Помощь"),
 ]
 

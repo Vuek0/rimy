@@ -24,7 +24,7 @@ FUNNEL = [
     ("purchase", "Купили Premium"),
     ("promo_redeemed", "Ввели промокод"),
 ]
-AI_KINDS = {"word": "AI-слова", "voice": "Голосовые", "chat": "Сообщения Рими", "check": "AI-проверки"}
+AI_KINDS = {"word": "AI-слова", "voice": "Голосовые", "chat": "Сообщения Rimy", "check": "AI-проверки"}
 
 
 async def dashboard(s: AsyncSession, now: datetime, tz_name: str, days: int) -> dict[str, Any]:

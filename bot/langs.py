@@ -10,6 +10,13 @@ class Lang:
     flag: str
     name_uz: str = ""  # «italyan»
 
+    @property
+    def prompt(self) -> str:
+        """How AI prompts name the language. Uzbek is written in Latin and Cyrillic: we want Latin only."""
+        if self.code == "uz":
+            return "Uzbek (Latin alphabet only, e.g. \"Salom, qalaysan?\"; never Cyrillic)"
+        return self.english
+
     def name(self, native: str) -> str:
         """The language's name in the learner's base language (for menus and the Mini App)."""
         if native == "en":

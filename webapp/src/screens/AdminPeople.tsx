@@ -7,7 +7,7 @@ import { api, avatarUrl, type Person, type PersonProfile } from "../api";
 import { haptic, tg } from "../telegram";
 import { FullLoader } from "../ui";
 
-const AI_LABELS: Record<string, string> = { word: "AI-слова", voice: "Голосовые", chat: "Сообщения Рими", check: "AI-проверки" };
+const AI_LABELS: Record<string, string> = { word: "AI-слова", voice: "Голосовые", chat: "Сообщения Rimy", check: "AI-проверки" };
 
 /** "5 мин назад", "3 ч назад", "вчера", then the date. */
 function ago(iso: string | null): string {

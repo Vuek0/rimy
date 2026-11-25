@@ -1,7 +1,7 @@
 """Who joined the bot: the people list and one person's profile for the team dashboard (admins only).
 
-Product data only (languages, words, reviews, payments, funnel steps). What the person told Rimi in
-chat and the facts Rimi remembers stay out of it: the team doesn't need to read private conversations.
+Product data only (languages, words, reviews, payments, funnel steps). What the person told Rimy in
+chat and the facts Rimy remembers stay out of it: the team doesn't need to read private conversations.
 """
 
 from datetime import datetime

@@ -34,7 +34,7 @@ Rules:
 
 
 def _header(target: str, native: str) -> str:
-    t, n = get_lang(target).english, get_lang(native).english
+    t, n = get_lang(target).prompt, get_lang(native).prompt
     return (
         f"You are a meticulous {t} teacher. A learner whose native language is {n} is adding a {t} word "
         f"or short phrase to their flashcards. TARGET = {t}, NATIVE = {n}."
@@ -44,7 +44,7 @@ def _header(target: str, native: str) -> str:
 def text_prompt(text: str, target: str, native: str, meaning: str = "", context: str = "") -> str:
     focus = ""
     if meaning or context:
-        n = get_lang(native).english
+        n = get_lang(native).prompt
         focus = (
             "\n\nThe learner took this word from a text and wants it WITH THE MEANING USED THERE."
             + (f'\nMeaning in that text ({n}): "{meaning}"' if meaning else "")
@@ -70,6 +70,7 @@ SPEECH_SAMPLES = {
     "ko": "안녕하세요, 잘 지내요? 네, 잘 지내요.",
     "zh": "你好，你好吗？我很好，谢谢。",
     "tr": "Merhaba, nasılsın? İyiyim, teşekkürler.",
+    "uz": "Salom, qalaysan? Yaxshi, rahmat.",  # Latin: otherwise Whisper may write Uzbek in Cyrillic
 }
 
 
@@ -85,7 +86,7 @@ def transcription_hint(target: str, native: str = "ru") -> str:
 
 
 def route_prompt(text: str, target: str, native: str, previous: str = "") -> str:
-    t, n = get_lang(target).english, get_lang(native).english
+    t, n = get_lang(target).prompt, get_lang(native).prompt
     conversation = ""
     if previous:
         conversation = f"""
@@ -155,7 +156,7 @@ _CARD_FORMAT = """{
 
 
 def persona_card_prompt(request: str, identified: str, wiki: str, target: str, native: str) -> str:
-    t, n = get_lang(target).english, get_lang(native).english
+    t, n = get_lang(target).prompt, get_lang(native).prompt
     wiki_block = f"\n\nNotes from the character's wiki (may be incomplete):\n<<<\n{wiki}\n>>>" if wiki else ""
     return f"""Create a character card for a chat companion in a {t}-learning Telegram bot.
 The user's request: "{request}"
@@ -173,7 +174,7 @@ Return ONLY JSON in this format:
 
 
 def persona_revise_prompt(card_json: str, instruction: str, target: str, native: str) -> str:
-    t, n = get_lang(target).english, get_lang(native).english
+    t, n = get_lang(target).prompt, get_lang(native).prompt
     return f"""Here is a character card for a chat companion in a {t}-learning bot:
 {card_json}
 
@@ -207,7 +208,7 @@ def _grammar_gender_rule(gender: str, n: str) -> str:
 def persona_system_prompt(
     card_json: str, target: str, native: str, practice: bool, gender: str = "", context: str = ""
 ) -> str:
-    t, n = get_lang(target).english, get_lang(native).english
+    t, n = get_lang(target).prompt, get_lang(native).prompt
     if practice:
         mode = (
             f"PRACTICE MODE: the learner wants to practise {t}. Reply mostly in {t}, using simple words for a learner, "
@@ -230,6 +231,7 @@ Character card:
 
 Rules:
 - Language facts must be correct. The character's style never overrides accuracy; if unsure, say so in character.
+- Write your name exactly as in the card ("name") in every language; never transliterate it into another alphabet.
 {_grammar_gender_rule(gender, n)}
 - Telegram chat: keep replies short and lively (usually 2-8 sentences; longer only for real grammar explanations).
   No headings or tables; you may use **bold** for {t} words and simple lists.
@@ -261,7 +263,7 @@ Return ONLY JSON: {{"reply": "<your message to the user>",
 
 def nudge_prompt(card_json: str, target: str, native: str, gender: str, kind: str, context: str) -> str:
     """A message the persona sends on its own: a reminder, "I miss you", the daily backup."""
-    t, n = get_lang(target).english, get_lang(native).english
+    t, n = get_lang(target).prompt, get_lang(native).prompt
     situations = {
         "review": "It's time for today's review: some cards are waiting. Invite the user to review, playfully.",
         "miss_you": "The user hasn't come for a while. Tell them you miss them, in character, and invite them back "
@@ -277,6 +279,7 @@ def nudge_prompt(card_json: str, target: str, native: str, gender: str, kind: st
 Situation: {situations[kind]}
 The user is NOT in the chat right now: your message starts the conversation (don't say they came back).
 Write ONE short message (1-3 sentences) in {n}, fully in character, you may add one {t} phrase with a translation.
+Your name is written exactly as in the card, never transliterated.
 {_grammar_gender_rule(gender, n)}
 Return ONLY JSON: {{"text": "<the message>", "emotion": "happy" | "excited" | "sad" | "surprised" | "proud"}}"""
 
@@ -294,7 +297,7 @@ def answer_check_prompt(
     question: str, expected: str, answer: str, voice: bool, answer_lang: str, target: str, native: str,
     persona_style: str, user_gender: str = "",
 ) -> str:
-    t, n, a = get_lang(target).english, get_lang(native).english, get_lang(answer_lang).english
+    t, n, a = get_lang(target).prompt, get_lang(native).prompt, get_lang(answer_lang).prompt
     how = (
         f"by VOICE: this is a speech-recognition transcript of what they said in {a}"
         if voice else f"typed in {a}"

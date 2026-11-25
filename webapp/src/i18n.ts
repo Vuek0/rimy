@@ -109,7 +109,7 @@ const uz: Record<Key, string> = {
   "prof.todayFree": "Bugun bepul tarifda", "prof.goPremium": "Cheklovsiz Premium",
   "prof.promoWaiting": "Promokod to'lovni kutmoqda: Premium bilan birga +{n} kun qo'shiladi",
   "prof.learning": "O'rganayotgan tilim", "prof.base": "Muloqot tili", "prof.baseHint": "Tarjimalar, izohlar va {mascot} javoblari",
-  "quota.word": "AI so'zlar", "quota.voice": "Ovozli xabarlar", "quota.chat": "Rimi bilan suhbat", "quota.check": "AI javob tekshiruvi",
+  "quota.word": "AI so'zlar", "quota.voice": "Ovozli xabarlar", "quota.chat": "Rimy bilan suhbat", "quota.check": "AI javob tekshiruvi",
 
   "promo.title": "Promokod", "promo.hint": "Rimy jamoasidan kod Premium'ga kun qo'shadi", "promo.apply": "Qo'llash",
 
@@ -166,7 +166,7 @@ const en: Record<Key, string> = {
   "prof.todayFree": "Today on the free plan", "prof.goPremium": "Premium, no limits",
   "prof.promoWaiting": "Your promo code is waiting: +{n} days come with Premium",
   "prof.learning": "I'm learning", "prof.base": "App language", "prof.baseHint": "Translations, explanations and {mascot}'s replies",
-  "quota.word": "AI words", "quota.voice": "Voice words", "quota.chat": "Chat with Rimi", "quota.check": "AI answer checks",
+  "quota.word": "AI words", "quota.voice": "Voice words", "quota.chat": "Chat with Rimy", "quota.check": "AI answer checks",
 
   "promo.title": "Promo code", "promo.hint": "A code from the Rimy team adds days to Premium", "promo.apply": "Apply",
 

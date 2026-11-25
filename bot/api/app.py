@@ -33,7 +33,7 @@ from bot.db.repo import Repo
 from bot.handlers.premium import premium_invoice_link
 from bot.handlers.review import expected_answer
 from bot.langs import BASE_LANGS, LANGS, card_question, learnable
-from bot.persona.card import MASCOT_NAME, PersonaCard
+from bot.persona.card import PersonaCard
 from bot.persona.context import snapshot
 from bot.utils import format_interval, utcnow
 
@@ -198,8 +198,7 @@ def create_app(
             "price_stars": settings.premium_price_stars,
             "quotas": {q.kind: q.to_dict() for q in await c.billing.quotas(c.user, now)},
             "stats": {"words": snap.words, "due": snap.due, "reviewed_today": snap.reviewed_today, "streak": snap.streak},
-            # the mascot is «Рими» in Cyrillic; Uzbek (Latin script) and English show "Rimi"
-            "mascot": c.persona.name if c.user.native_lang == "ru" or c.persona.name != MASCOT_NAME else "Rimi",
+            "mascot": c.persona.name,  # "Rimy" in every language
             "is_admin": settings.is_admin(c.user.id),
             "promo_pending_days": await promo.pending_days(c.repo.s, c.user),
         }

@@ -21,10 +21,10 @@ def pick(options: list[str]) -> str:
 
 UI: dict[str, dict[str, str]] = {
     "ru": {
-        "choose_base": "🦥 Привет! Я Рими, ленивец-полиглот.\n\nНа каком языке тебе удобнее со мной общаться?",
+        "choose_base": "🦥 Привет! Я Rimy, ленивец-полиглот.\n\nНа каком языке тебе удобнее со мной общаться?",
         "choose_target": "Отлично! А какой язык будем учить? 🌍",
         "base_set": "Готово: общаемся на русском 🇷🇺",
-        "greeting": "Привет! 👋 Я Рими, ленивец-полиглот 🦥",
+        "greeting": "Привет! 👋 Я Rimy, ленивец-полиглот 🦥",
         "learning": "Сейчас учим",
         "help": (
             "🎙 <b>Самое удобное: просто отправь голосовое со словом.</b> Зажми микрофон справа внизу и скажи слово, "
@@ -40,14 +40,14 @@ UI: dict[str, dict[str, str]] = {
             "/practice - разговорная практика\n"
             "/premium - Premium без лимитов\n"
             "/remind - напоминания\n"
-            "/memory - что Рими помнит о тебе"
+            "/memory - что Rimy помнит о тебе"
         ),
     },
     "uz": {
-        "choose_base": "🦥 Salom! Men Rimi - poliglot yalqov.\n\nMen bilan qaysi tilda gaplashish qulay?",
+        "choose_base": "🦥 Salom! Men Rimy - poliglot yalqov.\n\nMen bilan qaysi tilda gaplashish qulay?",
         "choose_target": "Ajoyib! Qaysi tilni o'rganamiz? 🌍",
         "base_set": "Tayyor: o'zbek tilida gaplashamiz 🇺🇿",
-        "greeting": "Salom! 👋 Men Rimi - poliglot yalqov 🦥",
+        "greeting": "Salom! 👋 Men Rimy - poliglot yalqov 🦥",
         "learning": "Hozir o'rganyapmiz",
         "help": (
             "🎙 <b>Eng qulayi: so'zni ovozli xabar bilan yubor.</b> Pastki o'ngdagi mikrofonni bosib turing va so'zni ayting, "

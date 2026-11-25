@@ -35,14 +35,14 @@ LIMIT_TEXT = {
     "uz": {
         "word": "Bugungi bepul AI so'zlar tugadi (kuniga {limit} ta).",
         "voice": "Bugungi bepul ovozli xabarlar tugadi (kuniga {limit} ta).",
-        "chat": "Bugungi bepul Rimi bilan suhbat tugadi (kuniga {limit} ta).",
+        "chat": "Bugungi bepul Rimy bilan suhbat tugadi (kuniga {limit} ta).",
         "check": "Bugungi bepul AI javob tekshiruvlari tugadi (kuniga {limit} ta).",
         "tail": "\n\nKartalarni takrorlash bepul qoladi. Premium barcha cheklovlarni olib tashlaydi - /premium ⭐",
     },
     "en": {
         "word": "You've used today's free AI words ({limit} a day).",
         "voice": "You've used today's free voice words ({limit} a day).",
-        "chat": "You've used today's free chat with Rimi ({limit} a day).",
+        "chat": "You've used today's free chat with Rimy ({limit} a day).",
         "check": "You've used today's free AI answer checks ({limit} a day).",
         "tail": "\n\nReviewing cards stays free. Premium removes every limit - /premium ⭐",
     },

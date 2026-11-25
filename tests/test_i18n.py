@@ -21,6 +21,62 @@ def test_intervals_and_questions():
     assert get_lang("de").name("uz") == "nemis" and get_lang("de").name("en") == "German"
 
 
+def test_uzbek_is_latin_and_the_mascot_is_rimy():
+    from bot.ai import prompts
+    from bot.i18n import TEXTS
+    from bot.persona.card import DEFAULT_CARD, MASCOT_NAME
+
+    # the AI is told to write Uzbek in Latin letters, in every prompt that names the language
+    assert "Latin" in get_lang("uz").prompt and "Cyrillic" in get_lang("uz").prompt
+    assert "Latin alphabet" in prompts.text_prompt("kitob", "en", "uz")
+    assert "Latin alphabet" in prompts.persona_system_prompt("{}", "en", "uz", practice=False)
+    assert get_lang("it").prompt == "Italian" and get_lang("uz").name("en") == "Uzbek"  # menus stay short
+    assert "Salom" in prompts.transcription_hint("en", "uz")
+
+    # one name in every language, never «Рими» / "Rimi"
+    assert MASCOT_NAME == DEFAULT_CARD.name == "Rimy"
+    everything = repr(TEXTS) + DEFAULT_CARD.model_dump_json()
+    assert "Рими" not in everything and "Rimi" not in everything and everything.count("Rimy") > 10
+
+
+async def test_migration_renames_the_mascot(tmp_path):
+    import json
+
+    from sqlalchemy import text
+
+    from bot.db.session import make_engine, run_migrations
+
+    url = f"sqlite+aiosqlite:///{(tmp_path / 'm.db').as_posix()}"
+    engine = make_engine(url)
+    await run_migrations(url)
+    async with engine.begin() as conn:  # a mascot row saved before the rename
+        await conn.execute(
+            text("INSERT INTO personas (user_id, name, source, card, is_active, avatar_credit, art_tag, created_at) "
+                 "VALUES (7, :n, '', :c, 1, '', '', '2026-01-01')"),
+            {"n": "Рими", "c": json.dumps({"name": "Рими", "appearance": "Ленивец Рими"}, ensure_ascii=False)},
+        )
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "migrations" / "versions" / "0011_mascot_rimy.py"
+    spec = importlib.util.spec_from_file_location("mascot_rimy", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    async with engine.begin() as conn:
+        await conn.run_sync(lambda sync: _run_with_op(sync, migration.upgrade))
+        name, card = (await conn.execute(text("SELECT name, card FROM personas"))).one()
+    await engine.dispose()
+    assert name == "Rimy" and json.loads(card) == {"name": "Rimy", "appearance": "Ленивец Rimy"}
+
+
+def _run_with_op(sync_conn, fn):
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    with Operations.context(MigrationContext.configure(sync_conn)):
+        fn()
+
+
 def test_chat_texts_exist_in_every_language():
     from bot.i18n import COMMANDS, TEXTS
 

@@ -47,7 +47,7 @@ def base_keyboard() -> InlineKeyboardMarkup:
 def langs_keyboard(native: str) -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(
-            text=f"{lang.flag} {lang.english if native == 'en' else lang.name_ru}", callback_data=f"lang:{lang.code}"
+            text=f"{lang.flag} {lang.name(native)}", callback_data=f"lang:{lang.code}"
         )
         for lang in learnable(native)
     ]
