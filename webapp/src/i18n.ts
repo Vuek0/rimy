@@ -58,6 +58,14 @@ const ru = {
   "pay.perk3": "Разговорная практика с {mascot}", "pay.perk4": "Все языки сразу",
   "pay.promoAdds": "Твой промокод добавит ещё +{n} дн.", "pay.subscribe": "Подписаться за {n} Stars в месяц",
   "pay.havePromo": "У меня есть промокод", "pay.notNow": "Не сейчас", "pay.reviewFree": "Повторение карточек всегда бесплатно",
+
+  "share.title": "Поделиться прогрессом",
+  "share.hint": "Карточка с ленивцем и твоей ссылкой: друг откроет Rimy в один клик",
+  "share.lazy": "Ленивый стрик: один пропуск в неделю прощается 🦥",
+  "share.chat": "В чат", "share.story": "В историю",
+  "share.sent": "Карточка уже в чате с Rimy: перешли её друзьям",
+  "share.empty": "Добавь первое слово, и будет чем поделиться",
+  "toast.card": "Новое достижение! Карточка ждёт в чате с Rimy",
 };
 
 type Key = keyof typeof ru;
@@ -117,6 +125,14 @@ const uz: Record<Key, string> = {
   "pay.perk3": "{mascot} bilan suhbat amaliyoti", "pay.perk4": "Barcha tillar birdaniga",
   "pay.promoAdds": "Promokoding yana +{n} kun qo'shadi", "pay.subscribe": "Oyiga {n} Stars evaziga obuna bo'lish",
   "pay.havePromo": "Menda promokod bor", "pay.notNow": "Hozir emas", "pay.reviewFree": "Kartalarni takrorlash doim bepul",
+
+  "share.title": "Natijang bilan ulash",
+  "share.hint": "Yalqov va sening havolang bilan karta: do'sting Rimy'ni bir bosishda ochadi",
+  "share.lazy": "Dangasa seriya: haftada bitta o'tkazib yuborish kechiriladi 🦥",
+  "share.chat": "Chatga", "share.story": "Hikoyaga",
+  "share.sent": "Karta Rimy bilan chatda: uni do'stlaringga yubor",
+  "share.empty": "Birinchi so'zni qo'sh, keyin ulashadigan narsa bo'ladi",
+  "toast.card": "Yangi yutuq! Karta Rimy bilan chatda kutmoqda",
 };
 
 const en: Record<Key, string> = {
@@ -174,6 +190,14 @@ const en: Record<Key, string> = {
   "pay.perk3": "Conversation practice with {mascot}", "pay.perk4": "All languages at once",
   "pay.promoAdds": "Your promo code adds +{n} more days", "pay.subscribe": "Subscribe for {n} Stars a month",
   "pay.havePromo": "I have a promo code", "pay.notNow": "Not now", "pay.reviewFree": "Reviewing cards is always free",
+
+  "share.title": "Share your progress",
+  "share.hint": "A card with the sloth and your link: a friend opens Rimy in one tap",
+  "share.lazy": "Lazy streak: one missed day a week is forgiven 🦥",
+  "share.chat": "To a chat", "share.story": "To a story",
+  "share.sent": "The card is in your chat with Rimy: forward it to friends",
+  "share.empty": "Add your first word and there'll be something to share",
+  "toast.card": "New achievement! Your card is waiting in the chat with Rimy",
 };
 
 const DICTS: Record<Locale, Record<Key, string>> = { ru, uz, en };

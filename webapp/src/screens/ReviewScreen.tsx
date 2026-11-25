@@ -4,7 +4,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { api, speak, type Card, type Check as CheckResult } from "../api";
-import { haptic } from "../telegram";
+import { haptic, tg } from "../telegram";
 import { useRecorder } from "../useRecorder";
 import { FullLoader, Thinking } from "../ui";
 import { t } from "../i18n";
@@ -78,8 +78,9 @@ export function ReviewScreen({ onError, onChange }: Props) {
     if (!card) return;
     setBusy(true);
     try {
-      await api.rate(card.id, rating);
+      const res = await api.rate(card.id, rating);
       haptic.tap();
+      if (res.achievement) { haptic.success(); tg?.showAlert(t("toast.card")); }  // the card itself is in the chat
       setDone((d) => d + 1);
       onChange();
       await load(card.id);

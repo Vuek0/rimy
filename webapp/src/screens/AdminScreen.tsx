@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity, BarChart3, BookOpen, Copy, Crown, Gift, Layers, Plus, Power, Receipt, Star, UserPlus, Users, type LucideIcon,
+  Activity, BarChart3, BookOpen, Copy, Crown, Gift, Layers, Plus, Power, Receipt, Repeat, Share2, Star, UserPlus, Users,
+  type LucideIcon,
 } from "lucide-react";
 import { api, type Dashboard, type Point, type Promo } from "../api";
 import { haptic, tg } from "../telegram";
@@ -219,6 +220,8 @@ function Numbers({ onError }: { onError: (e: unknown) => void }) {
         <Kpi icon={Crown} value={t.premium} label="Premium активно" />
         <Kpi icon={Receipt} value={t.payments} label="оплат" />
         <Kpi icon={Star} value={t.stars} label="Stars получено" />
+        <Kpi icon={Share2} value={data.virality?.invited ?? 0} label="пришли от друзей" />
+        <Kpi icon={Repeat} value={data.virality?.k ?? 0} label="K-фактор (друзей на юзера)" />
       </div>
 
       <div className="chips">

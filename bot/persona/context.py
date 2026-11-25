@@ -26,6 +26,8 @@ async def snapshot(repo: Repo, user: User, deck: Deck, now: datetime, previous_a
     tz = ZoneInfo(user.timezone)
     today = now.astimezone(tz).date()
     times = await repo.review_times(deck.id, since=now - timedelta(days=366))
+    # a learning day = reviewed cards or added words (new learners at the stand add before they review)
+    learned = times + await repo.word_times(deck.id, since=now - timedelta(days=366))
     return Snapshot(
         name=user.name,
         gender=user.gender,
@@ -33,7 +35,7 @@ async def snapshot(repo: Repo, user: User, deck: Deck, now: datetime, previous_a
         words=await repo.count_words(deck.id),
         due=await repo.count_due(deck.id, now),
         reviewed_today=sum(1 for t in times if t.astimezone(tz).date() == today),
-        streak=compute_streak({t.astimezone(tz).date() for t in times}, today),
+        streak=compute_streak({t.astimezone(tz).date() for t in learned}, today),
         hard_words=await repo.hard_words(deck.id, since=now - timedelta(days=30)),
         days_away=(now - previous_active).days if previous_active else 0,
     )

@@ -38,5 +38,11 @@ def test_streak():
     assert compute_streak(set(), today) == 0
     assert compute_streak({d(0), d(1), d(2)}, today) == 3
     assert compute_streak({d(1), d(2)}, today) == 2  # today not done yet — streak still alive
-    assert compute_streak({d(0), d(2)}, today) == 1
-    assert compute_streak({d(2), d(3)}, today) == 0
+    # the lazy streak: one missed day a week is a rest day, it keeps (and counts in) the chain
+    assert compute_streak({d(0), d(2)}, today) == 3
+    assert compute_streak({d(0), d(1), d(3), d(4)}, today) == 5
+    assert compute_streak({d(2), d(3)}, today) == 3  # rested yesterday, today isn't over yet
+    assert compute_streak({d(0), d(3)}, today) == 1  # two missed days in a row break it
+    assert compute_streak({d(0), d(2), d(4)}, today) == 3  # a second rest within a week breaks it
+    assert compute_streak({d(0), d(2), d(3), d(4), d(5), d(6), d(7), d(8), d(10)}, today) == 11  # 8 days apart: ok
+    assert compute_streak({d(3), d(4)}, today) == 0

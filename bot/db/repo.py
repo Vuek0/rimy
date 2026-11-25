@@ -324,6 +324,10 @@ class Repo:
         )
         return list(rows)
 
+    async def word_times(self, deck_id: int, since: datetime) -> list[datetime]:
+        stmt = select(Word.created_at).where(Word.deck_id == deck_id, Word.created_at >= since)
+        return list(await self.s.scalars(stmt))
+
     async def count_words_since(self, deck_id: int, since: datetime) -> int:
         stmt = select(func.count(Word.id)).where(Word.deck_id == deck_id, Word.created_at >= since)
         return await self.s.scalar(stmt) or 0

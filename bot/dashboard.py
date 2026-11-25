@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.achievements import FRIEND_PREFIX
 from bot.db.models import Card, Deck, Event, Payment, ReviewLog, Usage, User, Word
 
 FUNNEL = [
@@ -23,6 +24,8 @@ FUNNEL = [
     ("paywall_view", "Смотрели Premium"),
     ("purchase", "Купили Premium"),
     ("promo_redeemed", "Ввели промокод"),
+    ("card_sent", "Получили карточку-достижение"),
+    ("shared", "Поделились карточкой"),
 ]
 AI_KINDS = {"word": "AI-слова", "voice": "Голосовые", "chat": "Сообщения Rimy", "check": "AI-проверки"}
 
@@ -93,6 +96,13 @@ async def dashboard(s: AsyncSession, now: datetime, tz_name: str, days: int) -> 
     refs = await s.execute(
         select(User.ref, func.count(User.id)).where(User.ref != "").group_by(User.ref).order_by(func.count(User.id).desc())
     )
+    ref_rows = refs.all()
+    # users invited by other users (ref_f<id> from a shared card) are one lead source, not a code per person
+    invited = sum(count for ref, count in ref_rows if ref.startswith(FRIEND_PREFIX))
+    sharers = len({ref for ref, _ in ref_rows if ref.startswith(FRIEND_PREFIX)})
+    lead_rows = [(ref, count) for ref, count in ref_rows if not ref.startswith(FRIEND_PREFIX)]
+    if invited:
+        lead_rows = sorted([*lead_rows, ("друзья по приглашениям", invited)], key=lambda row: -row[1])
 
     return {
         "generated_at": now.isoformat(),
@@ -117,5 +127,7 @@ async def dashboard(s: AsyncSession, now: datetime, tz_name: str, days: int) -> 
         },
         "funnel": [{"key": key, "label": label, "users": reached.get(key, 0)} for key, label in FUNNEL],
         "ai_today": [{"kind": k, "label": label, "count": ai_today.get(k, 0)} for k, label in AI_KINDS.items()],
-        "refs": [{"ref": ref, "users": count} for ref, count in refs.all()],
+        "refs": [{"ref": ref, "users": count} for ref, count in lead_rows],
+        # viral coefficient: new users per user who brought at least one friend (and how many such users)
+        "virality": {"invited": invited, "sharers": sharers, "k": round(invited / users_total, 2) if users_total else 0},
     }

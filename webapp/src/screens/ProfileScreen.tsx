@@ -1,11 +1,69 @@
-import { BookOpen, CalendarCheck, Crown, Flame, Gift, Globe2, Languages, Layers } from "lucide-react";
+import { BookOpen, CalendarCheck, Crown, Flame, Gift, Globe2, Languages, Layers, Send, Share2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, avatarUrl, type Me } from "../api";
-import { haptic } from "../telegram";
+import { api, avatarUrl, type Me, type Share } from "../api";
+import { haptic, tg } from "../telegram";
 import { PromoForm } from "../ui";
 import { formatDate, t } from "../i18n";
 
 interface Props { me: Me; onError: (e: unknown) => void; onChange: () => void; onPremium: () => void }
+
+/** Share the progress card: Telegram's chat picker (or the card lands in the bot chat to forward), or a story. */
+function ShareCard({ me, onError }: { me: Me; onError: (e: unknown) => void }) {
+  const [info, setInfo] = useState<Share | null>(null);
+  const [busy, setBusy] = useState(false);
+  const hasWords = me.stats.words > 0;
+  useEffect(() => {
+    if (hasWords) api.share().then(setInfo).catch(() => undefined);
+  }, [hasWords, me.stats.streak, me.stats.words]);
+
+  const toChat = async () => {
+    haptic.tap();
+    if (info?.prepared_id && tg?.shareMessage) {
+      tg.shareMessage(info.prepared_id, (sent) => {
+        if (sent) { haptic.success(); api.track("shared", { via: "chat", kind: info.kind }); }
+      });
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.shareSend();
+      haptic.success();
+      tg?.showAlert(t("share.sent"));
+    } catch (e) {
+      onError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const toStory = () => {
+    if (!info?.story_url || !tg?.shareToStory) return;
+    haptic.tap();
+    tg.shareToStory(info.story_url, { text: `${info.text} ${info.link}` });
+    api.track("shared", { via: "story", kind: info.kind });
+  };
+
+  return (
+    <div className="card share-card">
+      <div className="row" style={{ gap: 10 }}>
+        <span className="stat-icon" style={{ margin: 0 }}><Share2 size={18} /></span>
+        <div>
+          <h3>{t("share.title")}</h3>
+          <p className="hint">{hasWords ? t("share.hint") : t("share.empty")}</p>
+        </div>
+      </div>
+      {info?.image_url && <img className="share-preview" src={info.image_url} alt="" />}
+      {hasWords && (
+        <div className="row">
+          <button className="primary" onClick={toChat} disabled={busy}><Send size={18} /> {t("share.chat")}</button>
+          {info?.story_url && tg?.shareToStory && (
+            <button onClick={toStory}><Sparkles size={18} /> {t("share.story")}</button>
+          )}
+        </div>
+      )}
+      <p className="hint">{t("share.lazy")}</p>
+    </div>
+  );
+}
 
 
 export function ProfileScreen({ me, onError, onChange, onPremium }: Props) {
@@ -45,6 +103,8 @@ export function ProfileScreen({ me, onError, onChange, onPremium }: Props) {
         <div className="stat"><span className="stat-icon"><CalendarCheck size={18} /></span><b>{me.stats.reviewed_today}</b><span>{t("prof.today")}</span></div>
         <div className="stat"><span className="stat-icon"><Flame size={18} /></span><b>{me.stats.streak}</b><span>{t("prof.streak")}</span></div>
       </div>
+
+      <ShareCard me={me} onError={onError} />
 
       {me.premium ? (
         <div className="card premium-card">

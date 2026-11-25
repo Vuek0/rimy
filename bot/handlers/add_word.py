@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from bot import texts
+from bot import achievements, texts
 from bot.ai.service import AIService
 from bot.ai.schemas import AIError, Sense, WordAnalysis
 from bot.billing import Billing
@@ -451,7 +451,9 @@ async def on_confirm(
             texts.render_word(draft) + f"\n\n{esc(phrase(persona, 'saved', texts.SAVED))} " + tr("add.review_later"),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[speech_buttons(word)]),
         )
-        # A sticker only for something worth celebrating, not for every saved word.
+        # A shareable card for a streak or vocabulary milestone; otherwise a sticker for smaller occasions.
+        if message.bot and await achievements.celebrate(message.bot, repo, billing, user, deck, now, word_saved=True):
+            return
         if milestone := await word_milestone(repo, deck.id, word.id, user.timezone, now):
             if not await arts.send_reaction(message, repo, persona_row, persona, "milestone", milestone, force=True):
                 await message.answer(milestone)

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Headphones, Lightbulb, Mic, Sparkles, Square } from "lucide-react";
 import { api, type Analysis, type Me } from "../api";
-import { haptic } from "../telegram";
+import { haptic, tg } from "../telegram";
 import { useRecorder } from "../useRecorder";
 import { Thinking } from "../ui";
 import { t } from "../i18n";
@@ -58,6 +58,7 @@ export function AddScreen({ me, onError, onSaved }: Props) {
         notes: analysis.notes,
       });
       haptic.success();
+      if (word.achievement) tg?.showAlert(t("toast.card"));  // a streak / vocabulary card was sent to the chat
       setSaved(word.display);
       setAnalysis(null);
       setText("");

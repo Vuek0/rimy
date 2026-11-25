@@ -21,6 +21,11 @@ export interface Promo {
   id: number; code: string; days: number; max_uses: number; active: boolean;
   used: number; applied: number; created_at: string;
 }
+export interface Share {
+  kind: "streak" | "words"; n: number; link: string; text: string;
+  image_url: string | null; story_url: string | null; prepared_id: string | null;
+}
+export interface Achievement { kind: "streak" | "words"; n: number }
 export interface Point { day: string; value: number }
 export interface Dashboard {
   generated_at: string;
@@ -34,6 +39,7 @@ export interface Dashboard {
   funnel: { key: string; label: string; users: number }[];
   ai_today: { kind: string; label: string; count: number }[];
   refs: { ref: string; users: number }[];
+  virality?: { invited: number; sharers: number; k: number };
 }
 export interface Person {
   id: number; first_name: string; username: string; native_lang: string; premium: boolean;
@@ -103,7 +109,7 @@ export const api = {
 
   analyze: (text: string) => post<Analysis>("/api/words/analyze", { text }),
   analyzeVoice: (blob: Blob) => request<Analysis>("/api/words/analyze-voice", { method: "POST", body: audioForm(blob) }),
-  saveWord: (draft: Draft) => post<Word>("/api/words", draft),
+  saveWord: (draft: Draft) => post<Word & { achievement?: Achievement | null }>("/api/words", draft),
   words: () => request<{ words: Word[]; total: number }>("/api/words"),
   deleteWord: (id: number) => request(`/api/words/${id}`, { method: "DELETE" }),
 
@@ -112,9 +118,13 @@ export const api = {
   answer: (cardId: number, text: string) => post<Check>(`/api/review/${cardId}/answer`, { text }),
   answerVoice: (cardId: number, blob: Blob) =>
     request<Check>(`/api/review/${cardId}/answer-voice`, { method: "POST", body: audioForm(blob) }),
-  rate: (cardId: number, rating: number) => post<{ next_in: string }>(`/api/review/${cardId}/rate`, { rating }),
+  rate: (cardId: number, rating: number) =>
+    post<{ next_in: string; achievement?: Achievement | null }>(`/api/review/${cardId}/rate`, { rating }),
 
   invoice: () => post<{ link: string }>("/api/premium/invoice"),
+
+  share: () => request<Share>("/api/share"),
+  shareSend: () => post<{ ok: boolean }>("/api/share/send"),
 
   redeemPromo: (code: string) => post<{ status: string; ok: boolean; message: string; days: number }>("/api/promo", { code }),
 

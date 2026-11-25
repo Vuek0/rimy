@@ -12,6 +12,8 @@ interface TgWebApp {
   openInvoice(url: string, cb?: (status: "paid" | "cancelled" | "failed" | "pending") => void): void;
   showAlert(message: string): void;
   openTelegramLink?(url: string): void;
+  shareMessage?(msgId: string, cb?: (sent: boolean) => void): void;
+  shareToStory?(mediaUrl: string, params?: { text?: string }): void;
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
   setBottomBarColor?(color: string): void;

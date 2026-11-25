@@ -266,6 +266,7 @@ button.icon:hover { background: var(--surface-2); color: var(--text); }
 .promo-new label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 700; }
 .promo-new .full { grid-column: 1 / -1; }
 .off { opacity: 0.5; }
+.share-preview { width: 100%; max-width: 260px; align-self: center; border-radius: 18px; box-shadow: var(--shadow); animation: pop 0.45s var(--spring) both; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 button.back { align-self: flex-start; padding: 8px 4px; }
 .person-row { flex-direction: row; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; text-align: left; justify-content: flex-start; width: 100%; font-weight: 500; }

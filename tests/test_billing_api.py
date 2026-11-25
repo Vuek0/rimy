@@ -57,6 +57,20 @@ class FakeAI:
 
 
 class FakeBot:
+    def __init__(self):
+        self.photos: list[tuple[int, bytes, dict]] = []
+        self.prepared: list[dict] = []
+
+    async def me(self):
+        return SimpleNamespace(username="rimy_ai_bot")
+
+    async def send_photo(self, chat_id, photo, **kwargs):
+        self.photos.append((chat_id, photo.data, kwargs))
+
+    async def save_prepared_inline_message(self, **kwargs):
+        self.prepared.append(kwargs)
+        return SimpleNamespace(id="prep-1")
+
     async def create_invoice_link(self, **kwargs):
         assert kwargs["currency"] == "XTR" and kwargs["subscription_period"] == 30 * 24 * 3600
         return "https://t.me/$invoice"

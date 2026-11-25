@@ -9,7 +9,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from bot import menu, srs, texts
+from bot import achievements, menu, srs, texts
 from bot.ai.schemas import AIError
 from bot.ai.service import AIService, AnswerCheck
 from bot.billing import Billing
@@ -245,5 +245,6 @@ async def on_rate(
         message.html_text
         + f"\n\n{emoji} {label} · " + tr("review.next_time", t=format_interval(due - now, user.native_lang)) + f"\n<i>{esc(reaction)}</i>"
     )
-    await arts.send_reaction(message, repo, persona_row, persona, "wrong" if rating == 1 else "correct")
+    if not (message.bot and await achievements.celebrate(message.bot, repo, billing, user, deck, now)):
+        await arts.send_reaction(message, repo, persona_row, persona, "wrong" if rating == 1 else "correct")
     await send_next_card(message, repo, user, deck, persona, persona_row, just_reviewed=card.id, memory=memory)

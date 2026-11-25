@@ -4,6 +4,7 @@ Every request carries `Authorization: tma <initData>`; the user is the one Teleg
 The API reuses the bot's AI service, repository, quotas and SRS, so the chat and the app share one deck.
 """
 
+import hmac
 import logging
 import time
 from collections import OrderedDict
@@ -13,13 +14,14 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from aiogram import Bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultPhoto
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from bot import promo, srs
+from bot import achievements, cards, promo, srs
 from bot.ai.schemas import AIError, WordAnalysis
 from bot.ai.service import AIService
 from bot.api.auth import AuthError, parse_init_data
@@ -44,6 +46,7 @@ MAX_AUDIO_BYTES = 2_000_000  # ~30 s of speech
 TTS_CACHE_SIZE = 300
 AVATAR_TTL = 3600  # seconds: a changed Telegram photo shows up within an hour
 AVATAR_CACHE_SIZE = 500
+CARD_CACHE_SIZE = 100
 
 
 # --- request / response models ---
@@ -152,6 +155,7 @@ def create_app(
     app = FastAPI(title="Rimy API", docs_url="/api/docs", openapi_url="/api/openapi.json")
     tts_cache: OrderedDict[str, bytes] = OrderedDict()
     avatar_cache: OrderedDict[int, tuple[float, bytes]] = OrderedDict()  # user id → (fetched at, jpeg or b"")
+    card_cache: OrderedDict[cards.CardSpec, bytes] = OrderedDict()  # rendered share cards
 
     async def ctx(authorization: Annotated[str, Header()] = "") -> AsyncIterator[Ctx]:
         scheme, _, init_data = authorization.partition(" ")
@@ -239,6 +243,84 @@ def create_app(
             "message": promo.message(result, c.user.native_lang),
             "days": result.days,
         }
+
+    # --- sharing progress (cards with an invite link) ---
+
+    async def progress_spec(c: Ctx, fmt: str = "post") -> cards.CardSpec | None:
+        """What to show off: the streak if there is one, otherwise the number of words."""
+        now = utcnow()
+        streak = await achievements.current_streak(c.repo, c.user, c.deck, now)
+        if streak >= 2:
+            return cards.CardSpec("streak", streak, c.user.native_lang, c.deck.target_lang, fmt)
+        words = await c.repo.count_words(c.deck.id)
+        if words > 0:
+            return cards.CardSpec("words", words, c.user.native_lang, c.deck.target_lang, fmt)
+        return None
+
+    def public_url(spec: cards.CardSpec) -> str:
+        return settings.webapp_url.rstrip("/") + achievements.card_path(settings.bot_token, spec)
+
+    @app.get("/api/share")
+    async def share_info(c: C) -> dict[str, Any]:
+        """The Mini App's share sheet: the card, the invite link and (if Telegram allows) a prepared message
+        that the app sends with Telegram's own chat picker (WebApp.shareMessage)."""
+        spec = await progress_spec(c)
+        if spec is None:
+            raise HTTPException(409, "nothing to share yet")
+        link = await achievements.invite_link(bot, c.user.id)
+        text = cards.SHARE_TEXT.get(spec.lang, cards.SHARE_TEXT["ru"])
+        prepared_id = None
+        if settings.webapp_url:
+            try:
+                prepared = await bot.save_prepared_inline_message(
+                    user_id=c.user.id,
+                    result=InlineQueryResultPhoto(
+                        id=f"{spec.kind}-{spec.n}-{c.user.id}",
+                        photo_url=public_url(spec),
+                        thumbnail_url=public_url(spec),
+                        caption=f"{text} {link}",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🦥 Rimy", url=link)]]),
+                    ),
+                    allow_user_chats=True, allow_group_chats=True, allow_channel_chats=True,
+                )
+                prepared_id = prepared.id
+            except Exception:  # noqa: BLE001 - the app falls back to sending the card into the chat
+                log.warning("prepared share message failed", exc_info=True)
+        story = cards.CardSpec(spec.kind, spec.n, spec.lang, spec.target, "story")
+        return {
+            "kind": spec.kind,
+            "n": spec.n,
+            "link": link,
+            "text": text,
+            "image_url": public_url(spec) if settings.webapp_url else None,
+            "story_url": public_url(story) if settings.webapp_url else None,
+            "prepared_id": prepared_id,
+        }
+
+    @app.post("/api/share/send")
+    async def share_send(c: C) -> dict[str, bool]:
+        """Fallback: the card goes into the chat with the bot, the user forwards it from there."""
+        spec = await progress_spec(c)
+        if spec is None:
+            raise HTTPException(409, "nothing to share yet")
+        await achievements.send_card(bot, c.user.id, spec)
+        await c.billing.track(c.user.id, "shared", utcnow(), via="chat_card", kind=spec.kind)
+        return {"ok": True}
+
+    @app.get("/api/card/{kind}/{n}/{lang}/{target}/{fmt}/{signature}.jpg")
+    async def card_image(kind: str, n: int, lang: str, target: str, fmt: str, signature: str) -> Response:
+        """Public (Telegram fetches it for shared messages and stories), but only for cards we signed."""
+        spec = cards.CardSpec(kind, n, lang, target, fmt)
+        expected = achievements.card_signature(settings.bot_token, spec)
+        if kind not in ("streak", "words") or fmt not in cards.SIZES or not hmac.compare_digest(signature, expected):
+            raise HTTPException(404, "no such card")
+        data = card_cache.get(spec)
+        if data is None:
+            data = cards.render(spec)
+            card_cache[spec] = data
+            while len(card_cache) > CARD_CACHE_SIZE:
+                card_cache.popitem(last=False)
+        return Response(data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
     # --- admin (ADMIN_IDS only) ---
 
@@ -376,7 +458,8 @@ def create_app(
         word = await c.repo.add_word(c.deck.id, draft, now)
         await c.billing.track_once(c.user.id, "first_word", now, source="app")
         await c.billing.track(c.user.id, "word_saved", now, source="app", lang=c.deck.target_lang)
-        return word_json(word)
+        spec = await achievements.celebrate(bot, c.repo, c.billing, c.user, c.deck, now, word_saved=True)
+        return {**word_json(word), "achievement": spec and {"kind": spec.kind, "n": spec.n}}
 
     @app.get("/api/words")
     async def list_words(c: C, limit: int = 200) -> dict[str, Any]:
@@ -449,7 +532,11 @@ def create_app(
         new_state, due = srs.review(card.fsrs, body.rating, now)
         await c.repo.record_review(card, body.rating, new_state, due, now)
         await c.billing.track_once(c.user.id, "first_review", now, source="app")
-        return {"next_in": format_interval(due - now, c.user.native_lang)}
+        spec = await achievements.celebrate(bot, c.repo, c.billing, c.user, c.deck, now)
+        return {
+            "next_in": format_interval(due - now, c.user.native_lang),
+            "achievement": spec and {"kind": spec.kind, "n": spec.n},
+        }
 
     # --- pronunciation ---
 
