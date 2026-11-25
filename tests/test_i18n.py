@@ -100,6 +100,13 @@ def test_tr_follows_the_update_language():
     finally:
         set_lang("ru")
     assert tr("rate.3") == "Хорошо"
+    # a {lang} placeholder must not clash with tr_in's own argument (the /practice button crashed on it)
+    assert "по-итальянски" in tr("practice.on", name="Rimy", lang="по-итальянски")
+    set_lang("uz")
+    try:
+        assert "italyan" in tr("practice.on", name="Rimy", lang="italyan")
+    finally:
+        set_lang("ru")
 
 
 def test_limit_and_promo_messages():

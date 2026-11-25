@@ -19,11 +19,12 @@ def current() -> str:
     return _lang.get()
 
 
-def tr(key: str, **kw: object) -> str:
+# positional-only (the "/"): texts may use {lang} or {key} placeholders without clashing with the arguments
+def tr(key: str, /, **kw: object) -> str:
     return tr_in(current(), key, **kw)
 
 
-def tr_in(lang: str, key: str, **kw: object) -> str:
+def tr_in(lang: str, key: str, /, **kw: object) -> str:
     """tr() for an explicit language (the Mini App API runs outside bot updates)."""
     value = TEXTS.get(lang, TEXTS["ru"]).get(key, TEXTS["ru"][key])
     text = random.choice(value) if isinstance(value, list) else value
